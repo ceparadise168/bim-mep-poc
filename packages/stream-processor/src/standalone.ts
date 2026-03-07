@@ -1,11 +1,11 @@
-import Redis from 'ioredis';
+import { Redis as IORedis } from 'ioredis';
 import pg from 'pg';
 import { StreamProcessor } from './processor.js';
 import { CREATE_TABLES_SQL } from './db-schema.js';
 
 const { Pool } = pg;
 
-const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
+const redis = new IORedis(process.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/bim_mep',
 });

@@ -115,7 +115,7 @@ export class DataStore {
 
   async getFloorOverview(floor: number) {
     const devices = await this.pool.query(
-      'SELECT device_id, device_type, zone FROM devices WHERE floor = $1',
+      'SELECT device_id, device_type, zone, vendor_name FROM devices WHERE floor = $1',
       [floor],
     );
 

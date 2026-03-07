@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api, FloorOverview } from '../api';
+import { api, FloorOverview, connectWebSocket } from '../api';
 
 export default function FloorDetail() {
   const { floor } = useParams<{ floor: string }>();
@@ -10,12 +10,39 @@ export default function FloorDetail() {
 
   useEffect(() => {
     if (!floor) return;
+
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     const load = () => {
       api.getFloorOverview(parseInt(floor)).then(setData).catch(e => setError(e.message));
     };
+
     load();
-    const timer = setInterval(load, 5000);
-    return () => clearInterval(timer);
+    const timer = setInterval(load, 15000);
+    const socket = connectWebSocket((message) => {
+      if (message.channel !== `signals:floor:${floor}` && message.channel !== 'dashboard') {
+        return;
+      }
+
+      if (!refreshTimer) {
+        refreshTimer = setTimeout(() => {
+          refreshTimer = undefined;
+          load();
+        }, 300);
+      }
+    });
+
+    socket.subscribe(`signals:floor:${floor}`);
+    socket.subscribe('dashboard');
+
+    return () => {
+      clearInterval(timer);
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+      socket.unsubscribe(`signals:floor:${floor}`);
+      socket.unsubscribe('dashboard');
+      socket.close();
+    };
   }, [floor]);
 
   if (error) return <div className="text-red-400 p-4">Error: {error}</div>;

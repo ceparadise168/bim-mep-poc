@@ -76,6 +76,9 @@ Services:
 - API Server: http://localhost:3000
 - Swagger Docs: http://localhost:3000/docs
 - Ingestion Gateway: http://localhost:3100
+- MQTT Broker: `localhost:1883`
+
+`db-init` now creates schema and seeds the full 474-device registry automatically, so the API and dashboard are not empty after startup.
 
 ### Local Development
 
@@ -84,17 +87,17 @@ Services:
 
 npm install
 
-# Initialize database
-node --loader tsx packages/stream-processor/src/init-db.ts
+# Initialize database schema and seed devices
+node --import tsx packages/stream-processor/src/init-db.ts
 
 # Run tests
 npm test
 
 # Start services (each in separate terminal)
-node --loader tsx packages/signal-simulator/src/standalone.ts
-node --loader tsx packages/ingestion-gateway/src/standalone.ts
-node --loader tsx packages/stream-processor/src/standalone.ts
-node --loader tsx packages/api-server/src/standalone.ts
+node --import tsx packages/signal-simulator/src/standalone.ts
+node --import tsx packages/ingestion-gateway/src/standalone.ts
+node --import tsx packages/stream-processor/src/standalone.ts
+node --import tsx packages/api-server/src/standalone.ts
 cd packages/dashboard && npm run dev
 ```
 
@@ -103,15 +106,16 @@ cd packages/dashboard && npm run dev
 ```
 bim-mep-poc/
 ├── packages/
-│   ├── signal-simulator/    # 474 IoT device simulators
-│   ├── ingestion-gateway/   # HTTP/WS/MQTT signal receiver
-│   ├── stream-processor/    # Redis consumer + TimescaleDB writer
+│   ├── signal-simulator/    # 474 IoT device simulators -> gateway batch publisher
+│   ├── ingestion-gateway/   # HTTP/WS/MQTT signal receiver + normalizer
+│   ├── stream-processor/    # Redis consumer + anomaly writer + realtime publisher
 │   ├── anomaly-engine/      # Anomaly detection + chaos injection
 │   ├── api-server/          # REST + WebSocket API
 │   └── dashboard/           # React visualization
 ├── docker-compose.yml       # One-click deployment
 ├── Dockerfile.app           # Backend services
-└── Dockerfile.dashboard     # Frontend (nginx)
+├── Dockerfile.dashboard     # Frontend (nginx)
+└── scripts/demo-smoke.sh    # Demo verification
 ```
 
 ## Simulated Devices (474 total)
@@ -156,7 +160,7 @@ ws://host/ws
   subscribe: "signals:{deviceId}"     # Single device signals
   subscribe: "signals:floor:{n}"      # Floor signals
   subscribe: "anomalies"              # Real-time alerts
-  subscribe: "dashboard"              # Dashboard updates
+  subscribe: "dashboard"              # Dashboard refresh events
 ```
 
 ## Chaos Scenarios
@@ -170,5 +174,9 @@ ws://host/ws
 ## Tests
 
 ```bash
-npm test  # 122 tests across all packages
+# Focused verification used for this hardening pass
+npm test --workspace @bim-mep/stream-processor -- device-seeder.test.ts processor.integration-path.test.ts
+npm test --workspace @bim-mep/api-server -- api-server.test.ts
+npm test --workspace @bim-mep/signal-simulator -- gateway-batch-publisher.test.ts
+./scripts/demo-smoke.sh
 ```

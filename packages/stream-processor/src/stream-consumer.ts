@@ -1,11 +1,11 @@
-import Redis from 'ioredis';
+import { Redis as IORedis, type Redis as RedisClient } from 'ioredis';
 import { EventEmitter } from 'events';
 
 export const STREAM_KEY = 'signals:raw';
 export const CONSUMER_GROUP = 'stream-processors';
 
 export interface StreamConsumerOptions {
-  redis?: Redis;
+  redis?: RedisClient;
   groupName?: string;
   consumerName?: string;
   batchSize?: number;
@@ -24,7 +24,7 @@ export interface ParsedSignal {
 }
 
 export class StreamConsumer extends EventEmitter {
-  private redis: Redis;
+  private redis: RedisClient;
   private groupName: string;
   private consumerName: string;
   private batchSize: number;
@@ -34,7 +34,7 @@ export class StreamConsumer extends EventEmitter {
 
   constructor(options: StreamConsumerOptions = {}) {
     super();
-    this.redis = options.redis ?? new Redis({ maxRetriesPerRequest: null });
+    this.redis = options.redis ?? new IORedis({ maxRetriesPerRequest: null });
     this.groupName = options.groupName ?? CONSUMER_GROUP;
     this.consumerName = options.consumerName ?? `consumer-${process.pid}`;
     this.batchSize = options.batchSize ?? 100;

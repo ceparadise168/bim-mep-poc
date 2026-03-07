@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { CREATE_TABLES_SQL, CREATE_HYPERTABLES_SQL, RETENTION_POLICY_SQL } from './db-schema.js';
+import { seedDevices } from './device-seeder.js';
 
 const { Pool } = pg;
 
@@ -27,6 +28,9 @@ async function initDb() {
     } catch (e: unknown) {
       console.log('Retention policy skipped:', (e as Error).message);
     }
+
+    const seeded = await seedDevices(pool);
+    console.log(`Seeded ${seeded} devices.`);
 
     console.log('Database initialized successfully.');
   } finally {

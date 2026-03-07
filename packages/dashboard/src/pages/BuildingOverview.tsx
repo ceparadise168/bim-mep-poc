@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { api, BuildingDashboard } from '../api';
+import { api, BuildingDashboard, connectWebSocket } from '../api';
 
 const COLORS = ['#22c55e', '#f59e0b', '#ef4444', '#6b7280'];
 const STATUS_LABELS = ['Normal', 'Warning', 'Critical', 'Offline'];
@@ -11,12 +11,37 @@ export default function BuildingOverview() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+
     const load = () => {
       api.getBuildingDashboard().then(setData).catch(e => setError(e.message));
     };
+
     load();
-    const timer = setInterval(load, 5000);
-    return () => clearInterval(timer);
+    const timer = setInterval(load, 15000);
+    const socket = connectWebSocket((message) => {
+      if (message.channel !== 'dashboard') {
+        return;
+      }
+
+      if (!refreshTimer) {
+        refreshTimer = setTimeout(() => {
+          refreshTimer = undefined;
+          load();
+        }, 300);
+      }
+    });
+
+    socket.subscribe('dashboard');
+
+    return () => {
+      clearInterval(timer);
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+      socket.unsubscribe('dashboard');
+      socket.close();
+    };
   }, []);
 
   if (error) return <div className="text-red-400 p-4">Error: {error}</div>;

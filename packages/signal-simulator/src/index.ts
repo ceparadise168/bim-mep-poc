@@ -3,6 +3,7 @@ export type { SimulatorOptions } from './simulator.js';
 export type { SimDevice } from './device-factory.js';
 export { createDevices, generateSignal } from './device-factory.js';
 export { deviceConfigs } from './device-configs.js';
+export { GatewayBatchPublisher } from './gateway-batch-publisher.js';
 export type {
   DeviceMetadata,
   DeviceType,

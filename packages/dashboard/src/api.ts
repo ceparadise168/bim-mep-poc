@@ -106,6 +106,7 @@ export interface ComfortAnalytics {
 export function connectWebSocket(onMessage: (data: { channel: string; data: unknown }) => void) {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+  const subscriptions = new Set<string>();
 
   ws.onmessage = (event) => {
     try {
@@ -114,13 +115,21 @@ export function connectWebSocket(onMessage: (data: { channel: string; data: unkn
     } catch { /* ignore */ }
   };
 
+  ws.onopen = () => {
+    for (const channel of subscriptions) {
+      ws.send(JSON.stringify({ action: 'subscribe', channel }));
+    }
+  };
+
   return {
     subscribe: (channel: string) => {
+      subscriptions.add(channel);
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ action: 'subscribe', channel }));
       }
     },
     unsubscribe: (channel: string) => {
+      subscriptions.delete(channel);
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ action: 'unsubscribe', channel }));
       }

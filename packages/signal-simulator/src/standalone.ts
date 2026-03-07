@@ -1,19 +1,39 @@
-import Redis from 'ioredis';
 import { SignalSimulator } from './simulator.js';
+import { GatewayBatchPublisher } from './gateway-batch-publisher.js';
 
-const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
-const STREAM_KEY = 'signals:raw';
+const gatewayUrl = process.env.INGESTION_GATEWAY_URL ?? 'http://localhost:3100';
+const flushIntervalMs = parseInt(process.env.INGEST_FLUSH_INTERVAL_MS ?? '250', 10);
+const publisher = new GatewayBatchPublisher({
+  maxBatchSize: parseInt(process.env.INGEST_BATCH_SIZE ?? '200', 10),
+  transport: {
+    async publishBatch(signals) {
+      const response = await fetch(`${gatewayUrl}/api/v1/ingest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signals),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Gateway publish failed with status ${response.status}`);
+      }
+    },
+  },
+});
 
 const sim = new SignalSimulator({
   speedMultiplier: 1,
-  onSignal: async (signal) => {
-    try {
-      await redis.xadd(STREAM_KEY, 'MAXLEN', '~', '100000', '*', 'data', JSON.stringify(signal));
-    } catch (err) {
-      console.error('Failed to publish signal:', err);
-    }
+  onSignal: (signal) => {
+    publisher.enqueue(signal);
   },
 });
+
+const flushTimer = setInterval(async () => {
+  try {
+    await publisher.flush();
+  } catch (error) {
+    console.error('[Simulator] Failed to flush signal batch:', (error as Error).message);
+  }
+}, flushIntervalMs);
 
 console.log(`Signal Simulator starting with ${sim.getDeviceCount()} devices...`);
 sim.start();
@@ -25,14 +45,19 @@ setInterval(() => {
   lastCount = count;
 }, 5000);
 
-process.on('SIGINT', () => {
+async function shutdown() {
   sim.stop();
-  redis.quit();
+  clearInterval(flushTimer);
+  while (publisher.getQueueSize() > 0) {
+    try {
+      await publisher.flush();
+    } catch (error) {
+      console.error('[Simulator] Failed to flush remaining signals:', (error as Error).message);
+      break;
+    }
+  }
   process.exit(0);
-});
+}
 
-process.on('SIGTERM', () => {
-  sim.stop();
-  redis.quit();
-  process.exit(0);
-});
+process.on('SIGINT', () => { shutdown().catch(() => process.exit(1)); });
+process.on('SIGTERM', () => { shutdown().catch(() => process.exit(1)); });

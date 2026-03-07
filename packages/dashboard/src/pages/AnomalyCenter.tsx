@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { api, Anomaly, ChaosScenario } from '../api';
+import { api, Anomaly, ChaosScenario, connectWebSocket } from '../api';
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: 'bg-red-500',
@@ -20,8 +20,38 @@ export default function AnomalyCenter() {
     };
     load();
     api.getChaosScenarios().then(setScenarios).catch(() => {});
-    const timer = setInterval(load, 5000);
-    return () => clearInterval(timer);
+    const timer = setInterval(load, 30000);
+    const socket = connectWebSocket((message) => {
+      if (message.channel !== 'anomalies' || !message.data || typeof message.data !== 'object') {
+        return;
+      }
+
+      const data = message.data as Partial<Anomaly>;
+      if (!data.device_id || !data.anomaly_type || !data.detected_at) {
+        return;
+      }
+
+      setAnomalies((current) => {
+        const next = [{
+          id: data.id ?? Date.now(),
+          device_id: data.device_id,
+          anomaly_type: data.anomaly_type,
+          severity: data.severity ?? 'warning',
+          message: data.message ?? '',
+          detected_at: data.detected_at,
+          resolved_at: data.resolved_at,
+        } as Anomaly, ...current];
+        return next.slice(0, 200);
+      });
+    });
+
+    socket.subscribe('anomalies');
+
+    return () => {
+      clearInterval(timer);
+      socket.unsubscribe('anomalies');
+      socket.close();
+    };
   }, []);
 
   const handleTrigger = async (scenario: string) => {

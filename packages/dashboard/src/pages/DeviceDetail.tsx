@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { api, DeviceDetail as DeviceDetailType, Signal, Maintenance } from '../api';
+import { api, DeviceDetail as DeviceDetailType, Signal, Maintenance, connectWebSocket } from '../api';
 
 const METRIC_COLORS = ['#06b6d4', '#8b5cf6', '#f59e0b', '#22c55e', '#ef4444', '#ec4899'];
 
@@ -27,8 +27,41 @@ export default function DeviceDetail() {
       }).then(setSignals).catch(() => {});
     };
     load();
-    const timer = setInterval(load, 5000);
-    return () => clearInterval(timer);
+    const timer = setInterval(load, 30000);
+    const socket = connectWebSocket((message) => {
+      if (message.channel !== `signals:${id}` || !message.data || typeof message.data !== 'object') {
+        return;
+      }
+
+      const data = message.data as {
+        timestamp?: number;
+        payload?: Record<string, number | string | boolean>;
+      };
+
+      if (!data.payload || typeof data.timestamp !== 'number') {
+        return;
+      }
+
+      const liveSignals = Object.entries(data.payload)
+        .filter((entry): entry is [string, number] => typeof entry[1] === 'number')
+        .map(([metricName, value]) => ({
+          time: new Date(data.timestamp!).toISOString(),
+          metric_name: metricName,
+          value,
+        }));
+
+      if (liveSignals.length > 0) {
+        setSignals((current) => [...current, ...liveSignals].slice(-300));
+      }
+    });
+
+    socket.subscribe(`signals:${id}`);
+
+    return () => {
+      clearInterval(timer);
+      socket.unsubscribe(`signals:${id}`);
+      socket.close();
+    };
   }, [id, timeRange]);
 
   if (error) return <div className="text-red-400 p-4">Error: {error}</div>;

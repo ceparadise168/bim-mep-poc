@@ -1,6 +1,6 @@
 # BIM MEP POC - Progress Tracker
 
-## Current Status: ALL PHASES COMPLETE
+## Current Status: HARDENING PASS COMPLETE
 
 ## Phase Checklist
 
@@ -18,6 +18,7 @@
 - [x] DLQ for invalid signals (queryable via API)
 - [x] Back-pressure mechanism (Redis stream length check, 429 response)
 - [x] Unit tests: 22 tests
+- [x] Signal simulator now ingests through gateway instead of bypassing to Redis
 
 ### Phase 3: Stream Processor - COMPLETE
 - [x] Consumer Group consumption (with pending message recovery)
@@ -25,6 +26,7 @@
 - [x] Derived metrics (COP, EUI, comfort index)
 - [x] TimescaleDB writes (raw + aggregations + device registry)
 - [x] Unit tests: 19 tests
+- [x] Chaos commands now affect the processing path and anomaly events are persisted
 
 ### Phase 4: Anomaly Engine - COMPLETE
 - [x] 6 anomaly types (threshold, trend, offline, performance, cascade, maintenance)
@@ -40,6 +42,7 @@
 - [x] WebSocket subscribe/unsubscribe with channel pattern support
 - [x] Route response < 200ms (verified: health 1ms, queries 2ms)
 - [x] Unit tests: 20 tests
+- [x] API chaos trigger now publishes real backend commands instead of local-only state
 
 ### Phase 6: Dashboard - COMPLETE
 - [x] 5 pages (Building Overview, Floor Detail, Device Detail, Anomaly Center, Energy Analysis)
@@ -48,6 +51,7 @@
 - [x] 4 chart types (LineChart, PieChart, BarChart, gauge/progress bars)
 - [x] Tailwind responsive layout for 1920x1080
 - [x] Unit tests: 5 tests
+- [x] Core views now use WebSocket updates (`anomalies`, `signals:{deviceId}`, `signals:floor:{n}`, `dashboard`)
 
 ### Integration Tests - COMPLETE
 - [x] Test 1: Normal operation stability (5s continuous signal generation + batch ingest)
@@ -64,7 +68,12 @@
 - [x] Standalone entry points for all services
 - [x] Database initialization script
 
-## Test Summary: 129 tests across 13 test files - ALL PASSING
+## Verification Summary
+- Focused stream processor hardening tests: passing
+- API server route and chaos command tests: passing
+- Signal simulator gateway batch publisher tests: passing
+- Dashboard unit tests: passing with existing React test warnings
+- `@bim-mep/stream-processor`, `@bim-mep/api-server`, `@bim-mep/signal-simulator`, `@bim-mep/dashboard` builds: passing
 
 ## Iteration Log
 - **Iteration 1**: Project scaffolding + Phase 1 Signal Simulator. 29 tests.
