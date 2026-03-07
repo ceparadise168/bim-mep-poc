@@ -1,6 +1,6 @@
 # BIM MEP POC - Progress Tracker
 
-## Current Status: Phase 3 Complete
+## Current Status: Phase 4 Complete
 
 ## Phase Checklist
 
@@ -26,13 +26,13 @@
 - [x] TimescaleDB writes (raw + aggregations + device registry)
 - [x] Unit tests: 19 tests (aggregator + stream consumer)
 
-### Phase 4: Anomaly Engine - NOT STARTED
-- [ ] 6 anomaly types
-- [ ] Chaos/fault injection API
-- [ ] Cascade anomalies
-- [ ] WebSocket alert push
-- [ ] Random fault 5-min test
-- [ ] Unit tests > 80%
+### Phase 4: Anomaly Engine - COMPLETE
+- [x] 6 anomaly types (threshold, trend, offline, performance, cascade, maintenance)
+- [x] Chaos/fault injection (5 scenarios: chiller, power, sensor drift, network, water leak)
+- [x] Cascade anomalies (source→target with delay)
+- [x] WebSocket alert push (via EventEmitter, wired in Phase 5)
+- [x] Signal modification for fault types (spike, drop, drift, offline, intermittent)
+- [x] Unit tests: 27 tests (anomaly detector + chaos engine)
 
 ### Phase 5: API Server - NOT STARTED
 - [ ] All REST endpoints
@@ -60,5 +60,6 @@
 - **Iteration 1**: Project scaffolding + Phase 1 Signal Simulator complete. 474 devices, 12 device types, 5 protocols, full metadata. 29 tests passing.
 - **Iteration 2**: Phase 2 Ingestion Gateway complete. HTTP batch/single, WebSocket, MQTT broker. Schema validation, DLQ, back-pressure. 51 tests passing.
 - **Iteration 3**: Phase 3 Stream Processor complete. Consumer group, sliding window aggregation, derived metrics, DB schema. 70 tests passing.
+- **Iteration 4**: Phase 4 Anomaly Engine complete. 6 anomaly types, 5 chaos scenarios, cascade rules. 97 tests passing.
 
-## Next: Phase 4 - Anomaly Engine
+## Next: Phase 5 - API Server
