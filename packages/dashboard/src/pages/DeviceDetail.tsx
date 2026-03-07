@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { api, DeviceDetail as DeviceDetailType, Signal, Maintenance, connectWebSocket } from '../api';
+import { formatDeviceType } from '../utils';
 
 const METRIC_COLORS = ['#06b6d4', '#8b5cf6', '#f59e0b', '#22c55e', '#ef4444', '#ec4899'];
 
@@ -64,20 +65,22 @@ export default function DeviceDetail() {
     };
   }, [id, timeRange]);
 
+  const { metricNames, chartData } = useMemo(() => {
+    const names = [...new Set(signals.map(s => s.metric_name))];
+    const timeMap = new Map<string, Record<string, number>>();
+    for (const s of signals) {
+      const t = s.time;
+      if (!timeMap.has(t)) timeMap.set(t, {});
+      timeMap.get(t)![s.metric_name] = s.value;
+    }
+    const data = Array.from(timeMap.entries())
+      .map(([time, metrics]) => ({ time, ...metrics }))
+      .sort((a, b) => a.time.localeCompare(b.time));
+    return { metricNames: names, chartData: data };
+  }, [signals]);
+
   if (error) return <div className="text-red-400 p-4">Error: {error}</div>;
   if (!device) return <div className="text-slate-400 p-4">Loading...</div>;
-
-  // Group signals by time for chart
-  const metricNames = [...new Set(signals.map(s => s.metric_name))];
-  const timeMap = new Map<string, Record<string, number>>();
-  for (const s of signals) {
-    const t = s.time;
-    if (!timeMap.has(t)) timeMap.set(t, {});
-    timeMap.get(t)![s.metric_name] = s.value;
-  }
-  const chartData = Array.from(timeMap.entries())
-    .map(([time, metrics]) => ({ time, ...metrics }))
-    .sort((a, b) => a.time.localeCompare(b.time));
 
   return (
     <div className="space-y-6">
@@ -85,12 +88,11 @@ export default function DeviceDetail() {
         <Link to="/" className="text-cyan-400 hover:text-cyan-300">&larr; Back</Link>
         <h2 className="text-2xl font-bold">{device.device_id}</h2>
         <span className="bg-slate-700 text-slate-300 rounded px-2 py-0.5 text-sm capitalize">
-          {device.device_type.replace(/-/g, ' ')}
+          {formatDeviceType(device.device_type)}
         </span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Latest Readings */}
         <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
           <h3 className="text-lg font-semibold mb-3">Latest Readings</h3>
           <div className="grid grid-cols-2 gap-3">
@@ -103,7 +105,6 @@ export default function DeviceDetail() {
           </div>
         </div>
 
-        {/* Device Info */}
         <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
           <h3 className="text-lg font-semibold mb-3">Device Information</h3>
           <dl className="grid grid-cols-2 gap-2 text-sm">
@@ -123,7 +124,6 @@ export default function DeviceDetail() {
         </div>
       </div>
 
-      {/* Signal Chart */}
       <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Signal History</h3>
@@ -152,7 +152,6 @@ export default function DeviceDetail() {
         </ResponsiveContainer>
       </div>
 
-      {/* Maintenance History */}
       {maintenance.length > 0 && (
         <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
           <h3 className="text-lg font-semibold mb-3">Maintenance History</h3>

@@ -1,21 +1,7 @@
 import type pg from 'pg';
+import type { DeviceRecord } from './db-writer.js';
 
-export interface DeviceSeedRecord {
-  deviceId: string;
-  deviceType: string;
-  floor: number;
-  zone: string;
-  vendorName: string;
-  vendorModel: string;
-  vendorProtocol: string;
-  firmwareVersion: string;
-  installDate: string;
-  warrantyExpiry: string;
-  maintenanceSchedule: string;
-  geometry: Record<string, unknown>;
-}
-
-export async function buildDeviceSeedRecords(): Promise<DeviceSeedRecord[]> {
+export async function buildDeviceSeedRecords(): Promise<DeviceRecord[]> {
   const deviceFactoryModulePath = new URL('../../signal-simulator/src/device-factory.js', import.meta.url).href;
   const deviceConfigsModulePath = new URL('../../signal-simulator/src/device-configs.js', import.meta.url).href;
   const [{ createDevices }, { deviceConfigs }] = await Promise.all([

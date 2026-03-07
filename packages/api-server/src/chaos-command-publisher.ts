@@ -1,5 +1,7 @@
 import { Redis as IORedis, type Redis as RedisClient } from 'ioredis';
 
+export const CHAOS_CHANNEL = 'commands:chaos';
+
 export interface ChaosCommand {
   scenario: string;
   devices: string[];
@@ -23,7 +25,7 @@ export class RedisChaosCommandPublisher implements ChaosCommandPublisher {
   }
 
   async publish(command: ChaosCommand): Promise<void> {
-    await this.redis.publish('commands:chaos', JSON.stringify(command));
+    await this.redis.publish(CHAOS_CHANNEL, JSON.stringify(command));
   }
 
   async close(): Promise<void> {

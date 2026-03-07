@@ -7,6 +7,7 @@ export {
   NullChaosCommandPublisher,
   RedisChaosCommandPublisher,
 } from './chaos-command-publisher.js';
+export { CHAOS_CHANNEL } from './chaos-command-publisher.js';
 export type { ChaosCommand, ChaosCommandPublisher } from './chaos-command-publisher.js';
 export {
   NullRealtimeSubscriber,

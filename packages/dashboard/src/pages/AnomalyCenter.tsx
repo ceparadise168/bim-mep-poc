@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { api, Anomaly, ChaosScenario, connectWebSocket } from '../api';
 
-const SEVERITY_COLORS: Record<string, string> = {
-  critical: 'bg-red-500',
-  warning: 'bg-amber-500',
-  info: 'bg-blue-500',
+const SEVERITY_COLORS: Record<string, { dot: string; badge: string }> = {
+  critical: { dot: 'bg-red-500', badge: 'bg-red-900 text-red-200' },
+  warning: { dot: 'bg-amber-500', badge: 'bg-amber-900 text-amber-200' },
+  info: { dot: 'bg-blue-500', badge: 'bg-blue-900 text-blue-200' },
 };
 
 export default function AnomalyCenter() {
@@ -65,12 +65,13 @@ export default function AnomalyCenter() {
     }
   };
 
-  // Aggregate by type for chart
-  const typeCounts = anomalies.reduce((acc, a) => {
-    acc[a.anomaly_type] = (acc[a.anomaly_type] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-  const chartData = Object.entries(typeCounts).map(([type, count]) => ({ type, count }));
+  const chartData = useMemo(() => {
+    const typeCounts = anomalies.reduce((acc, a) => {
+      acc[a.anomaly_type] = (acc[a.anomaly_type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    return Object.entries(typeCounts).map(([type, count]) => ({ type, count }));
+  }, [anomalies]);
 
   return (
     <div className="space-y-6">
@@ -126,15 +127,13 @@ export default function AnomalyCenter() {
             <div className="text-slate-400 text-center py-8">No anomalies detected</div>
           ) : anomalies.map(a => (
             <div key={a.id} className="flex items-start gap-3 bg-slate-700 rounded p-3">
-              <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${SEVERITY_COLORS[a.severity] || 'bg-gray-500'}`} />
+              <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${SEVERITY_COLORS[a.severity]?.dot || 'bg-gray-500'}`} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-sm">{a.device_id}</span>
                   <span className="text-xs text-slate-400 capitalize">{a.anomaly_type}</span>
                   <span className={`text-xs px-1.5 py-0.5 rounded ${
-                    a.severity === 'critical' ? 'bg-red-900 text-red-200'
-                    : a.severity === 'warning' ? 'bg-amber-900 text-amber-200'
-                    : 'bg-blue-900 text-blue-200'
+                    SEVERITY_COLORS[a.severity]?.badge || 'bg-gray-900 text-gray-200'
                   }`}>{a.severity}</span>
                 </div>
                 <div className="text-sm text-slate-300 truncate">{a.message}</div>

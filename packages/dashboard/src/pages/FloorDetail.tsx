@@ -1,49 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api, FloorOverview, connectWebSocket } from '../api';
+import { api, FloorOverview } from '../api';
+import { useRealtimeData } from '../useRealtimeData';
+import { formatDeviceType, SEVERITY_TEXT_COLORS } from '../utils';
 
 export default function FloorDetail() {
   const { floor } = useParams<{ floor: string }>();
-  const [data, setData] = useState<FloorOverview | null>(null);
   const [filter, setFilter] = useState('');
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!floor) return;
+  const channels = useMemo(() => floor ? [`signals:floor:${floor}`, 'dashboard'] : [], [floor]);
 
-    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
-    const load = () => {
-      api.getFloorOverview(parseInt(floor)).then(setData).catch(e => setError(e.message));
-    };
-
-    load();
-    const timer = setInterval(load, 15000);
-    const socket = connectWebSocket((message) => {
-      if (message.channel !== `signals:floor:${floor}` && message.channel !== 'dashboard') {
-        return;
-      }
-
-      if (!refreshTimer) {
-        refreshTimer = setTimeout(() => {
-          refreshTimer = undefined;
-          load();
-        }, 300);
-      }
-    });
-
-    socket.subscribe(`signals:floor:${floor}`);
-    socket.subscribe('dashboard');
-
-    return () => {
-      clearInterval(timer);
-      if (refreshTimer) {
-        clearTimeout(refreshTimer);
-      }
-      socket.unsubscribe(`signals:floor:${floor}`);
-      socket.unsubscribe('dashboard');
-      socket.close();
-    };
-  }, [floor]);
+  const { data, error } = useRealtimeData<FloorOverview>({
+    channels,
+    loadFn: () => api.getFloorOverview(parseInt(floor!)),
+  });
 
   if (error) return <div className="text-red-400 p-4">Error: {error}</div>;
   if (!data) return <div className="text-slate-400 p-4">Loading...</div>;
@@ -67,9 +37,7 @@ export default function FloorDetail() {
         {data.activeAnomalies.map(a => (
           <div key={a.severity} className="bg-slate-800 rounded-lg p-4 border border-slate-700">
             <div className="text-slate-400 text-sm capitalize">{a.severity}</div>
-            <div className={`text-3xl font-bold ${
-              a.severity === 'critical' ? 'text-red-400' : 'text-amber-400'
-            }`}>{a.count}</div>
+            <div className={`text-3xl font-bold ${SEVERITY_TEXT_COLORS[a.severity] || 'text-amber-400'}`}>{a.count}</div>
           </div>
         ))}
       </div>
@@ -103,7 +71,7 @@ export default function FloorDetail() {
                       {d.device_id}
                     </Link>
                   </td>
-                  <td className="p-2 capitalize">{d.device_type.replace(/-/g, ' ')}</td>
+                  <td className="p-2 capitalize">{formatDeviceType(d.device_type)}</td>
                   <td className="p-2">{d.zone}</td>
                   <td className="p-2">{d.vendor_name}</td>
                 </tr>

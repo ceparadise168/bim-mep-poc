@@ -1,48 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { api, BuildingDashboard, connectWebSocket } from '../api';
+import { api, BuildingDashboard } from '../api';
+import { useRealtimeData } from '../useRealtimeData';
+import { formatDeviceType, SEVERITY_TEXT_COLORS } from '../utils';
 
 const COLORS = ['#22c55e', '#f59e0b', '#ef4444', '#6b7280'];
-const STATUS_LABELS = ['Normal', 'Warning', 'Critical', 'Offline'];
+
+const DASHBOARD_CHANNELS = ['dashboard'];
 
 export default function BuildingOverview() {
-  const [data, setData] = useState<BuildingDashboard | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const load = () => {
-      api.getBuildingDashboard().then(setData).catch(e => setError(e.message));
-    };
-
-    load();
-    const timer = setInterval(load, 15000);
-    const socket = connectWebSocket((message) => {
-      if (message.channel !== 'dashboard') {
-        return;
-      }
-
-      if (!refreshTimer) {
-        refreshTimer = setTimeout(() => {
-          refreshTimer = undefined;
-          load();
-        }, 300);
-      }
-    });
-
-    socket.subscribe('dashboard');
-
-    return () => {
-      clearInterval(timer);
-      if (refreshTimer) {
-        clearTimeout(refreshTimer);
-      }
-      socket.unsubscribe('dashboard');
-      socket.close();
-    };
-  }, []);
+  const { data, error } = useRealtimeData<BuildingDashboard>({
+    channels: DASHBOARD_CHANNELS,
+    loadFn: () => api.getBuildingDashboard(),
+  });
 
   if (error) return <div className="text-red-400 p-4">Error: {error}</div>;
   if (!data) return <div className="text-slate-400 p-4">Loading...</div>;
@@ -62,9 +33,7 @@ export default function BuildingOverview() {
         {data.activeAnomalies.map(a => (
           <div key={a.severity} className="bg-slate-800 rounded-lg p-4 border border-slate-700">
             <div className="text-slate-400 text-sm capitalize">{a.severity} Alerts</div>
-            <div className={`text-3xl font-bold ${
-              a.severity === 'critical' ? 'text-red-400' : a.severity === 'warning' ? 'text-amber-400' : 'text-blue-400'
-            }`}>{a.count}</div>
+            <div className={`text-3xl font-bold ${SEVERITY_TEXT_COLORS[a.severity] || 'text-blue-400'}`}>{a.count}</div>
           </div>
         ))}
       </div>
@@ -99,15 +68,13 @@ export default function BuildingOverview() {
       <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
         <h3 className="text-lg font-semibold mb-4">Floors</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {Array.from({ length: 13 }, (_, i) => i).map(floor => {
-            return (
-              <Link key={floor} to={`/floor/${floor}`}
-                className="bg-slate-700 hover:bg-slate-600 rounded p-3 transition-colors text-center">
-                <div className="text-lg font-semibold">{floor === 0 ? 'B1' : `${floor}F`}</div>
-                <div className="text-xs text-slate-400">Floor {floor}</div>
-              </Link>
-            );
-          })}
+          {Array.from({ length: 13 }, (_, i) => i).map(floor => (
+            <Link key={floor} to={`/floor/${floor}`}
+              className="bg-slate-700 hover:bg-slate-600 rounded p-3 transition-colors text-center">
+              <div className="text-lg font-semibold">{floor === 0 ? 'B1' : `${floor}F`}</div>
+              <div className="text-xs text-slate-400">Floor {floor}</div>
+            </Link>
+          ))}
         </div>
       </div>
 
@@ -116,7 +83,7 @@ export default function BuildingOverview() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {data.devicesByType.map(dt => (
             <div key={dt.device_type} className="bg-slate-700 rounded p-3">
-              <div className="text-sm text-slate-400 capitalize">{dt.device_type.replace(/-/g, ' ')}</div>
+              <div className="text-sm text-slate-400 capitalize">{formatDeviceType(dt.device_type)}</div>
               <div className="text-xl font-bold">{dt.count}</div>
             </div>
           ))}

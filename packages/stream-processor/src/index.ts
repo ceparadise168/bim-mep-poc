@@ -12,6 +12,7 @@ export {
   NullChaosCommandSubscriber,
   RedisChaosCommandSubscriber,
 } from './chaos-command-subscriber.js';
+export { CHAOS_CHANNEL } from './chaos-command-subscriber.js';
 export type { ChaosCommand, ChaosCommandSubscriber } from './chaos-command-subscriber.js';
 export {
   NullRealtimePublisher,

@@ -1,5 +1,7 @@
 import { Redis as IORedis, type Redis as RedisClient } from 'ioredis';
 
+export const CHAOS_CHANNEL = 'commands:chaos';
+
 export interface ChaosCommand {
   scenario: string;
   devices: string[];
@@ -22,11 +24,10 @@ export class RedisChaosCommandSubscriber implements ChaosCommandSubscriber {
   constructor(redisOrUrl: RedisClient | string) {
     if (typeof redisOrUrl === 'string') {
       this.redis = new IORedis(redisOrUrl, { enableReadyCheck: false });
-      this.owned = true;
     } else {
       this.redis = redisOrUrl.duplicate({ enableReadyCheck: false });
-      this.owned = true;
     }
+    this.owned = true;
   }
 
   async start(handler: (command: ChaosCommand) => Promise<void>): Promise<void> {
@@ -35,7 +36,7 @@ export class RedisChaosCommandSubscriber implements ChaosCommandSubscriber {
       await handler(parsed);
     });
 
-    await this.redis.subscribe('commands:chaos');
+    await this.redis.subscribe(CHAOS_CHANNEL);
   }
 
   async close(): Promise<void> {
