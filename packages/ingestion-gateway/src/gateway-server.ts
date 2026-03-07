@@ -2,12 +2,12 @@ import Fastify, { FastifyInstance } from 'fastify';
 import fastifyWebsocket from '@fastify/websocket';
 import { validateSignal } from './schema-validator.js';
 import { RedisPublisher } from './redis-publisher.js';
-import type Redis from 'ioredis';
+import type { Redis as RedisClient } from 'ioredis';
 
 export interface GatewayOptions {
   port?: number;
   host?: string;
-  redis?: Redis;
+  redis?: RedisClient;
   backPressureThreshold?: number;
 }
 
@@ -114,7 +114,8 @@ export class GatewayServer {
   async setupWebSocket(): Promise<void> {
     await this.app.register(fastifyWebsocket);
 
-    this.app.get('/ws/ingest', { websocket: true }, (socket) => {
+    this.app.get('/ws/ingest', { websocket: true }, (connection) => {
+      const socket = connection.socket;
       socket.on('message', async (message: Buffer) => {
         try {
           const data = JSON.parse(message.toString());

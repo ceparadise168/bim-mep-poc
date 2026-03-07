@@ -1,16 +1,41 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+
+const never = new Promise<never>(() => {});
+
+vi.mock('../src/api', () => ({
+  api: {
+    getBuildingDashboard: vi.fn(() => never),
+    getAnomalies: vi.fn(() => never),
+    getChaosScenarios: vi.fn(() => never),
+    getEnergyAnalytics: vi.fn(() => never),
+    getComfortAnalytics: vi.fn(() => never),
+  },
+  connectWebSocket: vi.fn(() => ({
+    subscribe: vi.fn(),
+    unsubscribe: vi.fn(),
+    close: vi.fn(),
+  })),
+}));
+
 import App from '../src/App';
+
+function renderApp(initialEntries: string[] = ['/']) {
+  render(
+    <MemoryRouter
+      initialEntries={initialEntries}
+      future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+    >
+      <App />
+    </MemoryRouter>,
+  );
+}
 
 describe('App', () => {
   it('should render navigation', () => {
-    render(
-      <MemoryRouter>
-        <App />
-      </MemoryRouter>,
-    );
+    renderApp();
     expect(screen.getByText('BIM MEP Dashboard')).toBeInTheDocument();
     expect(screen.getByText('Building Overview')).toBeInTheDocument();
     expect(screen.getByText('Anomaly Center')).toBeInTheDocument();
@@ -18,39 +43,22 @@ describe('App', () => {
   });
 
   it('should render building overview by default', () => {
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <App />
-      </MemoryRouter>,
-    );
-    // BuildingOverview renders "Loading..." initially
+    renderApp(['/']);
     expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
 
   it('should render anomaly center page', () => {
-    render(
-      <MemoryRouter initialEntries={['/anomalies']}>
-        <App />
-      </MemoryRouter>,
-    );
+    renderApp(['/anomalies']);
     expect(screen.getByText('Anomaly & Alert Center')).toBeInTheDocument();
   });
 
   it('should render energy analysis page', () => {
-    render(
-      <MemoryRouter initialEntries={['/energy']}>
-        <App />
-      </MemoryRouter>,
-    );
+    renderApp(['/energy']);
     expect(screen.getByText('Energy & Comfort Analysis')).toBeInTheDocument();
   });
 
   it('should have navigation links', () => {
-    render(
-      <MemoryRouter>
-        <App />
-      </MemoryRouter>,
-    );
+    renderApp();
     const links = screen.getAllByRole('link');
     expect(links.length).toBeGreaterThanOrEqual(3);
   });

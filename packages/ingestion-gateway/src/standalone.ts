@@ -1,10 +1,10 @@
-import Redis from 'ioredis';
+import { Redis as IORedis } from 'ioredis';
 import { GatewayServer } from './gateway-server.js';
 import { MqttBroker } from './mqtt-broker.js';
 
 const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
-const gatewayRedis = new Redis(redisUrl);
-const mqttRedis = new Redis(redisUrl);
+const gatewayRedis = new IORedis(redisUrl);
+const mqttRedis = new IORedis(redisUrl);
 const gateway = new GatewayServer({ port: 3100, redis: gatewayRedis });
 const mqttBroker = new MqttBroker({
   port: parseInt(process.env.MQTT_PORT ?? '1883', 10),

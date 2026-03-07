@@ -1,4 +1,4 @@
-import Ajv from 'ajv';
+import { Ajv, type ErrorObject } from 'ajv';
 
 const ajv = new Ajv({ allErrors: true });
 
@@ -31,7 +31,7 @@ export function validateSignal(signal: unknown): ValidationResult {
   }
   return {
     valid: false,
-    errors: validate.errors?.map(e => `${e.instancePath} ${e.message}`) ?? ['Unknown validation error'],
+    errors: validate.errors?.map((e: ErrorObject) => `${e.instancePath} ${e.message}`) ?? ['Unknown validation error'],
   };
 }
 

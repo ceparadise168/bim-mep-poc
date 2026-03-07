@@ -1,16 +1,16 @@
-import Redis from 'ioredis';
+import { Redis as IORedis, type Redis as RedisClient } from 'ioredis';
 
 export const STREAM_KEY = 'signals:raw';
 export const DLQ_KEY = 'signals:dlq';
 
 export interface RedisPublisherOptions {
-  redis?: Redis;
+  redis?: RedisClient;
   maxStreamLen?: number;
   backPressureThreshold?: number;
 }
 
 export class RedisPublisher {
-  private redis: Redis;
+  private redis: RedisClient;
   private maxStreamLen: number;
   private backPressureThreshold: number;
   private backPressureActive = false;
@@ -18,7 +18,7 @@ export class RedisPublisher {
   private dlqCount = 0;
 
   constructor(options: RedisPublisherOptions = {}) {
-    this.redis = options.redis ?? new Redis({ maxRetriesPerRequest: 3 });
+    this.redis = options.redis ?? new IORedis({ maxRetriesPerRequest: 3 });
     this.maxStreamLen = options.maxStreamLen ?? 100000;
     this.backPressureThreshold = options.backPressureThreshold ?? 50000;
   }
@@ -83,7 +83,7 @@ export class RedisPublisher {
   }
 
   async getDLQEntries(count: number = 100): Promise<Array<{ id: string; data: unknown; errors: string[] }>> {
-    const entries = await this.redis.xrange(DLQ_KEY, '-', '+', 'COUNT', count);
+    const entries = await this.redis.xrange(DLQ_KEY, '-', '+', 'COUNT', count) as Array<[string, string[]]>;
     return entries.map(([id, fields]) => {
       const fieldMap = new Map<string, string>();
       for (let i = 0; i < fields.length; i += 2) {

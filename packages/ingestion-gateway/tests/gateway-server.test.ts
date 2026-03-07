@@ -1,8 +1,71 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { GatewayServer } from '../src/gateway-server.js';
 import { v4 as uuidv4 } from 'uuid';
-import Redis from 'ioredis';
 import { STREAM_KEY, DLQ_KEY } from '../src/redis-publisher.js';
+
+class FakeRedis {
+  private streams = new Map<string, Array<[string, string[]]>>();
+  private nextId = 1;
+
+  async flushdb(): Promise<void> {
+    this.streams.clear();
+  }
+
+  async del(...keys: string[]): Promise<number> {
+    let deleted = 0;
+    for (const key of keys) {
+      if (this.streams.delete(key)) {
+        deleted++;
+      }
+    }
+    return deleted;
+  }
+
+  async xlen(stream: string): Promise<number> {
+    return this.streams.get(stream)?.length ?? 0;
+  }
+
+  async xrange(stream: string, _start: string, _end: string, ...args: Array<string | number>): Promise<Array<[string, string[]]>> {
+    const entries = this.streams.get(stream) ?? [];
+    const countIndex = args.findIndex((arg) => arg === 'COUNT');
+    if (countIndex >= 0) {
+      const count = Number(args[countIndex + 1]);
+      return entries.slice(0, count);
+    }
+    return entries;
+  }
+
+  async xadd(stream: string, ...args: string[]): Promise<string> {
+    const entryId = `${this.nextId++}-0`;
+    const markerIndex = args.indexOf('*');
+    const fieldStart = markerIndex >= 0 ? markerIndex + 1 : 0;
+    const fields = args.slice(fieldStart);
+    const entries = this.streams.get(stream) ?? [];
+    entries.push([entryId, fields]);
+    this.streams.set(stream, entries);
+    return entryId;
+  }
+
+  pipeline() {
+    const commands: Array<{ stream: string; args: string[] }> = [];
+    return {
+      xadd: (stream: string, ...args: string[]) => {
+        commands.push({ stream, args });
+        return this;
+      },
+      exec: async () => {
+        for (const command of commands) {
+          await this.xadd(command.stream, ...command.args);
+        }
+        return commands.map(() => [null, 'OK']);
+      },
+    };
+  }
+
+  async quit(): Promise<'OK'> {
+    return 'OK';
+  }
+}
 
 function makeSignal(overrides: Record<string, unknown> = {}) {
   return {
@@ -17,28 +80,20 @@ function makeSignal(overrides: Record<string, unknown> = {}) {
 }
 
 let gateway: GatewayServer;
-let redis: Redis; // Separate connection for test assertions
-let baseUrl: string;
+let redis: FakeRedis;
 
 beforeAll(async () => {
-  redis = new Redis({ db: 15 }); // Separate connection for test queries
+  redis = new FakeRedis();
   await redis.flushdb();
-  // Gateway gets its own Redis connection (same DB)
-  const gatewayRedis = new Redis({ db: 15 });
-  gateway = new GatewayServer({ port: 0, redis: gatewayRedis });
-  const address = await gateway.start();
-  const port = gateway.getApp().server.address();
-  if (typeof port === 'object' && port) {
-    baseUrl = `http://127.0.0.1:${port.port}`;
-  } else {
-    baseUrl = address.replace('[::]', '127.0.0.1').replace('0.0.0.0', '127.0.0.1');
-  }
+  gateway = new GatewayServer({ port: 0, redis: redis as never });
+  await gateway.getApp().ready();
 });
 
 afterAll(async () => {
-  await gateway.stop();
+  if (gateway) {
+    await gateway.stop();
+  }
   await redis.flushdb();
-  await redis.quit();
 });
 
 beforeEach(async () => {
@@ -47,21 +102,21 @@ beforeEach(async () => {
 
 describe('GatewayServer HTTP', () => {
   it('should respond to health check', async () => {
-    const res = await fetch(`${baseUrl}/health`);
-    expect(res.status).toBe(200);
-    const data = await res.json();
+    const res = await gateway.getApp().inject({ method: 'GET', url: '/health' });
+    expect(res.statusCode).toBe(200);
+    const data = res.json();
     expect(data.status).toBe('ok');
   });
 
   it('should accept valid batch of signals', async () => {
     const signals = [makeSignal(), makeSignal({ deviceId: 'VFD-05F-002' })];
-    const res = await fetch(`${baseUrl}/api/v1/ingest`, {
+    const res = await gateway.getApp().inject({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(signals),
+      url: '/api/v1/ingest',
+      payload: signals,
     });
-    expect(res.status).toBe(200);
-    const data = await res.json() as { accepted: number; rejected: number };
+    expect(res.statusCode).toBe(200);
+    const data = res.json() as { accepted: number; rejected: number };
     expect(data.accepted).toBe(2);
     expect(data.rejected).toBe(0);
 
@@ -76,13 +131,13 @@ describe('GatewayServer HTTP', () => {
       { bad: 'data' }, // invalid
       makeSignal({ protocol: 'invalid' }), // invalid
     ];
-    const res = await fetch(`${baseUrl}/api/v1/ingest`, {
+    const res = await gateway.getApp().inject({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(signals),
+      url: '/api/v1/ingest',
+      payload: signals,
     });
-    expect(res.status).toBe(200);
-    const data = await res.json() as { accepted: number; rejected: number };
+    expect(res.statusCode).toBe(200);
+    const data = res.json() as { accepted: number; rejected: number };
     expect(data.accepted).toBe(1);
     expect(data.rejected).toBe(2);
 
@@ -92,45 +147,45 @@ describe('GatewayServer HTTP', () => {
   });
 
   it('should accept single valid signal', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/ingest/single`, {
+    const res = await gateway.getApp().inject({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(makeSignal()),
+      url: '/api/v1/ingest/single',
+      payload: makeSignal(),
     });
-    expect(res.status).toBe(200);
-    const data = await res.json() as { accepted: boolean };
+    expect(res.statusCode).toBe(200);
+    const data = res.json() as { accepted: boolean };
     expect(data.accepted).toBe(true);
   });
 
   it('should reject invalid single signal with 400', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/ingest/single`, {
+    const res = await gateway.getApp().inject({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bad: 'data' }),
+      url: '/api/v1/ingest/single',
+      payload: { bad: 'data' },
     });
-    expect(res.status).toBe(400);
-    const data = await res.json() as { error: string };
+    expect(res.statusCode).toBe(400);
+    const data = res.json() as { error: string };
     expect(data.error).toBe('Validation failed');
   });
 
   it('should query DLQ entries', async () => {
     // Push some invalid signals first
-    await fetch(`${baseUrl}/api/v1/ingest`, {
+    await gateway.getApp().inject({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify([{ invalid: true }]),
+      url: '/api/v1/ingest',
+      payload: [{ invalid: true }],
     });
 
-    const res = await fetch(`${baseUrl}/api/v1/dlq`);
-    expect(res.status).toBe(200);
-    const data = await res.json() as { count: number; entries: unknown[] };
+    const res = await gateway.getApp().inject({ method: 'GET', url: '/api/v1/dlq' });
+    expect(res.statusCode).toBe(200);
+    const data = res.json() as { count: number; entries: unknown[] };
     expect(data.count).toBeGreaterThanOrEqual(1);
   });
 
   it('should return stats', async () => {
-    const res = await fetch(`${baseUrl}/api/v1/stats`);
-    expect(res.status).toBe(200);
-    const data = await res.json() as Record<string, unknown>;
+    const res = await gateway.getApp().inject({ method: 'GET', url: '/api/v1/stats' });
+    expect(res.statusCode).toBe(200);
+    const data = res.json() as Record<string, unknown>;
     expect(data).toHaveProperty('httpReceived');
     expect(data).toHaveProperty('publisher');
   });
@@ -138,13 +193,13 @@ describe('GatewayServer HTTP', () => {
   it('should handle high throughput batch', async () => {
     const batchSize = 500;
     const signals = Array.from({ length: batchSize }, () => makeSignal());
-    const res = await fetch(`${baseUrl}/api/v1/ingest`, {
+    const res = await gateway.getApp().inject({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(signals),
+      url: '/api/v1/ingest',
+      payload: signals,
     });
-    expect(res.status).toBe(200);
-    const data = await res.json() as { accepted: number };
+    expect(res.statusCode).toBe(200);
+    const data = res.json() as { accepted: number };
     expect(data.accepted).toBe(batchSize);
   });
 });

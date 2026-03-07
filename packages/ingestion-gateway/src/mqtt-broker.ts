@@ -1,16 +1,16 @@
-import Aedes from 'aedes';
+import { createBroker, type AedesPublishPacket, type Client } from 'aedes';
 import { createServer, Server } from 'net';
 import { validateSignal } from './schema-validator.js';
 import { RedisPublisher } from './redis-publisher.js';
-import type Redis from 'ioredis';
+import type { Redis as RedisClient } from 'ioredis';
 
 export interface MqttBrokerOptions {
   port?: number;
-  redis?: Redis;
+  redis?: RedisClient;
 }
 
 export class MqttBroker {
-  private aedes: Aedes;
+  private aedes: ReturnType<typeof createBroker>;
   private server: Server;
   private port: number;
   private publisher: RedisPublisher;
@@ -19,10 +19,10 @@ export class MqttBroker {
   constructor(options: MqttBrokerOptions = {}) {
     this.port = options.port ?? 1883;
     this.publisher = new RedisPublisher({ redis: options.redis });
-    this.aedes = new Aedes();
+    this.aedes = createBroker();
     this.server = createServer(this.aedes.handle);
 
-    this.aedes.on('publish', async (packet, _client) => {
+    this.aedes.on('publish', async (packet: AedesPublishPacket, _client: Client | null) => {
       if (packet.topic.startsWith('$') || packet.topic !== 'signals/ingest') return;
 
       try {
