@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_DB: bim_mep
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  db-init:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    command: ["node", "--loader", "tsx", "packages/stream-processor/src/init-db.ts"]
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@timescaledb:5432/bim_mep
+
+  signal-simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    command: ["node", "--loader", "tsx", "packages/signal-simulator/src/standalone.ts"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      REDIS_URL: redis://redis:6379
+
+  ingestion-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    command: ["node", "--loader", "tsx", "packages/ingestion-gateway/src/standalone.ts"]
+    ports:
+      - "3100:3100"
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_URL: redis://redis:6379
+
+  stream-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    command: ["node", "--loader", "tsx", "packages/stream-processor/src/standalone.ts"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://postgres:postgres@timescaledb:5432/bim_mep
+
+  api-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    command: ["node", "--loader", "tsx", "packages/api-server/src/standalone.ts"]
+    ports:
+      - "3000:3000"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://postgres:postgres@timescaledb:5432/bim_mep
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    ports:
+      - "5173:80"
+    depends_on:
+      - api-server
+
+volumes:
+  timescale_data:

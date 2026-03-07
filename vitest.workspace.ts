@@ -7,4 +7,5 @@ export default defineWorkspace([
   'packages/anomaly-engine',
   'packages/api-server',
   'packages/dashboard',
+  'tests/integration',
 ]);
