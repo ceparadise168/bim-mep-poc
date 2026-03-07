@@ -1,4 +1,7 @@
-import { createBroker, type AedesPublishPacket, type Client } from 'aedes';
+import aedes from 'aedes';
+const { createBroker } = aedes;
+type AedesPublishPacket = aedes.AedesPublishPacket;
+type Client = aedes.Client;
 import { createServer, Server } from 'net';
 import { validateSignal } from './schema-validator.js';
 import { RedisPublisher } from './redis-publisher.js';
