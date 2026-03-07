@@ -20,6 +20,9 @@ export class GatewayBatchPublisher {
   }
 
   enqueue(signal: SignalEnvelope): void {
+    if (this.queue.length >= this.maxBatchSize * 10) {
+      this.queue.shift();
+    }
     this.queue.push(signal);
   }
 

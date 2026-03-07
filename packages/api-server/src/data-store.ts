@@ -58,15 +58,15 @@ export class DataStore {
   }
 
   async getDevice(deviceId: string) {
-    const result = await this.pool.query('SELECT * FROM devices WHERE device_id = $1', [deviceId]);
+    const [result, signals] = await Promise.all([
+      this.pool.query('SELECT * FROM devices WHERE device_id = $1', [deviceId]),
+      this.pool.query(
+        `SELECT DISTINCT ON (metric_name) metric_name, value, time, quality
+         FROM signals_raw WHERE device_id = $1 ORDER BY metric_name, time DESC`,
+        [deviceId],
+      ),
+    ]);
     if (result.rows.length === 0) return null;
-
-    // Get latest signals
-    const signals = await this.pool.query(
-      `SELECT DISTINCT ON (metric_name) metric_name, value, time, quality
-       FROM signals_raw WHERE device_id = $1 ORDER BY metric_name, time DESC`,
-      [deviceId],
-    );
 
     return { ...result.rows[0], latestSignals: signals.rows };
   }
@@ -107,24 +107,25 @@ export class DataStore {
 
   async getDeviceMaintenance(deviceId: string) {
     const result = await this.pool.query(
-      'SELECT * FROM maintenance_logs WHERE device_id = $1 ORDER BY performed_at DESC',
+      'SELECT * FROM maintenance_logs WHERE device_id = $1 ORDER BY performed_at DESC LIMIT 100',
       [deviceId],
     );
     return result.rows;
   }
 
   async getFloorOverview(floor: number) {
-    const devices = await this.pool.query(
-      'SELECT device_id, device_type, zone, vendor_name FROM devices WHERE floor = $1',
-      [floor],
-    );
-
-    const anomalies = await this.pool.query(
-      `SELECT COUNT(*) as count, severity FROM anomaly_events
-       WHERE device_id IN (SELECT device_id FROM devices WHERE floor = $1)
-       AND resolved_at IS NULL GROUP BY severity`,
-      [floor],
-    );
+    const [devices, anomalies] = await Promise.all([
+      this.pool.query(
+        'SELECT device_id, device_type, zone, vendor_name FROM devices WHERE floor = $1',
+        [floor],
+      ),
+      this.pool.query(
+        `SELECT COUNT(*) as count, severity FROM anomaly_events
+         WHERE device_id IN (SELECT device_id FROM devices WHERE floor = $1)
+         AND resolved_at IS NULL GROUP BY severity`,
+        [floor],
+      ),
+    ]);
 
     return {
       floor,
@@ -135,19 +136,17 @@ export class DataStore {
   }
 
   async getBuildingDashboard() {
-    const deviceCount = await this.pool.query('SELECT COUNT(*) FROM devices');
-    const devicesByType = await this.pool.query(
-      'SELECT device_type, COUNT(*) as count FROM devices GROUP BY device_type ORDER BY count DESC',
-    );
-    const activeAnomalies = await this.pool.query(
-      'SELECT severity, COUNT(*) as count FROM anomaly_events WHERE resolved_at IS NULL GROUP BY severity',
-    );
-    const recentEnergy = await this.pool.query(
-      `SELECT time_bucket('1 hour', time) as hour, SUM(value) as total_kwh
-       FROM signals_raw WHERE metric_name = 'kwh'
-       AND time > NOW() - INTERVAL '24 hours'
-       GROUP BY hour ORDER BY hour`,
-    );
+    const [deviceCount, devicesByType, activeAnomalies, recentEnergy] = await Promise.all([
+      this.pool.query('SELECT COUNT(*) FROM devices'),
+      this.pool.query('SELECT device_type, COUNT(*) as count FROM devices GROUP BY device_type ORDER BY count DESC'),
+      this.pool.query('SELECT severity, COUNT(*) as count FROM anomaly_events WHERE resolved_at IS NULL GROUP BY severity'),
+      this.pool.query(
+        `SELECT time_bucket('1 hour', time) as hour, SUM(value) as total_kwh
+         FROM signals_raw WHERE metric_name = 'kwh'
+         AND time > NOW() - INTERVAL '24 hours'
+         GROUP BY hour ORDER BY hour`,
+      ),
+    ]);
 
     return {
       totalDevices: parseInt(deviceCount.rows[0]?.count ?? '0', 10),
@@ -187,19 +186,20 @@ export class DataStore {
   }
 
   async getEnergyAnalytics() {
-    const floorEnergy = await this.pool.query(
-      `SELECT d.floor, SUM(s.value) as total_kwh
-       FROM signals_raw s JOIN devices d ON s.device_id = d.device_id
-       WHERE s.metric_name = 'kwh' AND s.time > NOW() - INTERVAL '24 hours'
-       GROUP BY d.floor ORDER BY d.floor`,
-    );
-
-    const copTrend = await this.pool.query(
-      `SELECT time_bucket('1 hour', time) as hour, AVG(value) as avg_cop
-       FROM signals_raw WHERE metric_name = 'cop'
-       AND time > NOW() - INTERVAL '24 hours'
-       GROUP BY hour ORDER BY hour`,
-    );
+    const [floorEnergy, copTrend] = await Promise.all([
+      this.pool.query(
+        `SELECT d.floor, SUM(s.value) as total_kwh
+         FROM signals_raw s JOIN devices d ON s.device_id = d.device_id
+         WHERE s.metric_name = 'kwh' AND s.time > NOW() - INTERVAL '24 hours'
+         GROUP BY d.floor ORDER BY d.floor`,
+      ),
+      this.pool.query(
+        `SELECT time_bucket('1 hour', time) as hour, AVG(value) as avg_cop
+         FROM signals_raw WHERE metric_name = 'cop'
+         AND time > NOW() - INTERVAL '24 hours'
+         GROUP BY hour ORDER BY hour`,
+      ),
+    ]);
 
     return { floorEnergy: floorEnergy.rows, copTrend: copTrend.rows };
   }

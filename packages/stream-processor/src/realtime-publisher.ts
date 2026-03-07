@@ -31,12 +31,15 @@ export class RedisRealtimePublisher implements RealtimePublisher {
 
   async publishSignal(signal: ParsedSignal): Promise<void> {
     const payload = JSON.stringify(signal);
-    await this.redis.publish(`signals:${signal.deviceId}`, payload);
+    const promises: Promise<number>[] = [
+      this.redis.publish(`signals:${signal.deviceId}`, payload),
+    ];
 
     const floor = signal.metadata?.floor;
     if (typeof floor === 'number') {
-      await this.redis.publish(`signals:floor:${floor}`, payload);
+      promises.push(this.redis.publish(`signals:floor:${floor}`, payload));
     }
+    await Promise.all(promises);
   }
 
   async publishAnomaly(event: Record<string, unknown>): Promise<void> {

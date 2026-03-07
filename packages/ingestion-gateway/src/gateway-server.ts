@@ -124,16 +124,20 @@ export class GatewayServer {
           // Support single or batch
           const signals = Array.isArray(data) ? data : [data];
 
+          const validSignals: Record<string, unknown>[] = [];
           for (const signal of signals) {
             const validation = validateSignal(signal);
             if (validation.valid) {
-              await this.publisher.publish(signal as Record<string, unknown>);
+              validSignals.push(signal as Record<string, unknown>);
               this.stats.validated++;
             } else {
               await this.publisher.publishDLQ(signal, validation.errors!);
               this.stats.rejected++;
               socket.send(JSON.stringify({ error: 'validation_failed', deviceId: (signal as Record<string, unknown>).deviceId, details: validation.errors }));
             }
+          }
+          if (validSignals.length > 0) {
+            await this.publisher.publishBatch(validSignals);
           }
         } catch {
           socket.send(JSON.stringify({ error: 'invalid_json' }));

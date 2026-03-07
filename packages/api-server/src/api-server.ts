@@ -224,6 +224,9 @@ export class ApiServer {
 
       const entry = { scenario, triggeredAt: new Date().toISOString(), devices };
       this.chaosHistory.push(entry);
+      if (this.chaosHistory.length > 100) {
+        this.chaosHistory = this.chaosHistory.slice(-100);
+      }
       await this.chaosCommandPublisher.publish({ scenario, devices });
 
       return { triggered: true, ...entry };

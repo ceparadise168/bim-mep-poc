@@ -190,9 +190,7 @@ export class StreamProcessor extends EventEmitter {
       await this.persistAnomalies(anomalies);
     }
 
-    for (const signal of liveSignals) {
-      await this.realtimePublisher.publishSignal(signal);
-    }
+    await Promise.all(liveSignals.map(signal => this.realtimePublisher.publishSignal(signal)));
 
     await this.maybePublishDashboardUpdate(liveSignals.length, anomalies.length);
   }
@@ -305,19 +303,17 @@ export class StreamProcessor extends EventEmitter {
 
     await this.dbWriter.writeAnomalies(records);
 
-    for (const event of events) {
-      await this.realtimePublisher.publishAnomaly({
-        device_id: event.deviceId,
-        anomaly_type: event.anomalyType,
-        severity: event.severity,
-        message: event.message,
-        metric_name: event.metricName,
-        metric_value: event.metricValue,
-        threshold: event.threshold,
-        detected_at: new Date(event.detectedAt).toISOString(),
-        metadata: event.metadata,
-      });
-    }
+    await Promise.all(events.map(event => this.realtimePublisher.publishAnomaly({
+      device_id: event.deviceId,
+      anomaly_type: event.anomalyType,
+      severity: event.severity,
+      message: event.message,
+      metric_name: event.metricName,
+      metric_value: event.metricValue,
+      threshold: event.threshold,
+      detected_at: new Date(event.detectedAt).toISOString(),
+      metadata: event.metadata,
+    })));
   }
 
   private async maybePublishDashboardUpdate(signalCount: number, anomalyCount: number): Promise<void> {

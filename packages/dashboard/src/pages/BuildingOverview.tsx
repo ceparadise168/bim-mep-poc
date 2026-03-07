@@ -100,7 +100,6 @@ export default function BuildingOverview() {
         <h3 className="text-lg font-semibold mb-4">Floors</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {Array.from({ length: 13 }, (_, i) => i).map(floor => {
-            const typeCount = data.devicesByType.length;
             return (
               <Link key={floor} to={`/floor/${floor}`}
                 className="bg-slate-700 hover:bg-slate-600 rounded p-3 transition-colors text-center">
