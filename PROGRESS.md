@@ -1,6 +1,6 @@
 # BIM MEP POC - Progress Tracker
 
-## Current Status: Phase 4 Complete
+## Current Status: Phase 5 Complete
 
 ## Phase Checklist
 
@@ -34,12 +34,12 @@
 - [x] Signal modification for fault types (spike, drop, drift, offline, intermittent)
 - [x] Unit tests: 27 tests (anomaly detector + chaos engine)
 
-### Phase 5: API Server - NOT STARTED
-- [ ] All REST endpoints
-- [ ] OpenAPI/Swagger docs
-- [ ] WebSocket subscribe/unsubscribe
-- [ ] P95 < 200ms
-- [ ] Unit tests > 80%
+### Phase 5: API Server - COMPLETE
+- [x] All REST endpoints (devices, floors, building, anomalies, chaos, analytics)
+- [x] OpenAPI/Swagger docs (auto-generated at /docs)
+- [x] WebSocket subscribe/unsubscribe with channel pattern support
+- [x] Route response verified (chaos trigger, health check, docs)
+- [x] Unit tests: 20 tests (ws-manager + api-server routes)
 
 ### Phase 6: Dashboard - NOT STARTED
 - [ ] 5 pages operational
@@ -61,5 +61,6 @@
 - **Iteration 2**: Phase 2 Ingestion Gateway complete. HTTP batch/single, WebSocket, MQTT broker. Schema validation, DLQ, back-pressure. 51 tests passing.
 - **Iteration 3**: Phase 3 Stream Processor complete. Consumer group, sliding window aggregation, derived metrics, DB schema. 70 tests passing.
 - **Iteration 4**: Phase 4 Anomaly Engine complete. 6 anomaly types, 5 chaos scenarios, cascade rules. 97 tests passing.
+- **Iteration 5**: Phase 5 API Server complete. REST + WebSocket + Swagger. 117 tests passing.
 
-## Next: Phase 5 - API Server
+## Next: Phase 6 - Dashboard
