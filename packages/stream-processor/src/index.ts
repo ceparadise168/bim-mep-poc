@@ -5,7 +5,7 @@ export type { StreamConsumerOptions, ParsedSignal } from './stream-consumer.js';
 export { SlidingWindowAggregator, computeAgg, computeCOP, computeEUI, computeComfortIndex } from './aggregator.js';
 export type { AggWindow, AggResult } from './aggregator.js';
 export { DbWriter } from './db-writer.js';
-export type { DbWriterOptions, SignalRecord, AggRecord, DeviceRecord, AnomalyRecord } from './db-writer.js';
+export type { DbWriterOptions, SignalRecord, AggRecord, DeviceRecord, AnomalyRecord, AnomalyResolveRecord } from './db-writer.js';
 export { CREATE_TABLES_SQL, CREATE_HYPERTABLES_SQL, RETENTION_POLICY_SQL } from './db-schema.js';
 export { buildDeviceSeedRecords, seedDevices } from './device-seeder.js';
 export {

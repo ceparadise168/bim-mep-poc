@@ -122,7 +122,7 @@ export class DataStore {
       this.pool.query(
         `SELECT COUNT(*) as count, severity FROM anomaly_events
          WHERE device_id IN (SELECT device_id FROM devices WHERE floor = $1)
-         AND resolved_at IS NULL GROUP BY severity`,
+         AND state != 'resolved' GROUP BY severity`,
         [floor],
       ),
     ]);
@@ -139,7 +139,7 @@ export class DataStore {
     const [deviceCount, devicesByType, activeAnomalies, recentEnergy] = await Promise.all([
       this.pool.query('SELECT COUNT(*) FROM devices'),
       this.pool.query('SELECT device_type, COUNT(*) as count FROM devices GROUP BY device_type ORDER BY count DESC'),
-      this.pool.query('SELECT severity, COUNT(*) as count FROM anomaly_events WHERE resolved_at IS NULL GROUP BY severity'),
+      this.pool.query(`SELECT severity, COUNT(*) as count FROM anomaly_events WHERE state != 'resolved' GROUP BY severity`),
       this.pool.query(
         `SELECT time_bucket('1 hour', time) as hour, SUM(value) as total_kwh
          FROM signals_raw WHERE metric_name = 'kwh'
@@ -156,7 +156,7 @@ export class DataStore {
     };
   }
 
-  async getAnomalies(options: { deviceId?: string; type?: string; severity?: string; limit?: number } = {}) {
+  async getAnomalies(options: { deviceId?: string; type?: string; severity?: string; state?: string; limit?: number } = {}) {
     const conditions: string[] = [];
     const params: unknown[] = [];
     let idx = 1;
@@ -172,6 +172,10 @@ export class DataStore {
     if (options.severity) {
       conditions.push(`severity = $${idx++}`);
       params.push(options.severity);
+    }
+    if (options.state) {
+      conditions.push(`state = $${idx++}`);
+      params.push(options.state);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

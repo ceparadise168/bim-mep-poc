@@ -17,15 +17,26 @@ export interface SignalRecord {
 }
 
 export interface AnomalyRecord {
+  fingerprint: string;
   deviceId: string;
   anomalyType: string;
   severity: string;
+  state: string;
   message: string;
   metricName?: string;
   metricValue?: number;
   threshold?: number;
   detectedAt: Date;
+  firedAt?: Date;
+  resolvedAt?: Date;
+  occurrenceCount: number;
   metadata?: Record<string, unknown>;
+}
+
+export interface AnomalyResolveRecord {
+  fingerprint: string;
+  resolvedAt: Date;
+  metricValue?: number;
 }
 
 export class DbWriter {
@@ -88,30 +99,53 @@ export class DbWriter {
   async writeAnomalies(records: AnomalyRecord[]): Promise<void> {
     if (records.length === 0) return;
 
-    const values: unknown[] = [];
-    const placeholders: string[] = [];
-
-    for (let i = 0; i < records.length; i++) {
-      const record = records[i];
-      const offset = i * 8;
-      placeholders.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8})`);
-      values.push(
-        record.deviceId,
-        record.anomalyType,
-        record.severity,
-        record.message,
-        record.metricName ?? null,
-        record.metricValue ?? null,
-        record.threshold ?? null,
-        record.metadata ? JSON.stringify(record.metadata) : null,
+    // Upsert: INSERT new alerts, or update existing ones by fingerprint
+    for (const record of records) {
+      await this.pool.query(
+        `INSERT INTO anomaly_events
+           (fingerprint, device_id, anomaly_type, severity, state, message,
+            metric_name, metric_value, threshold, detected_at, fired_at, last_eval_at, occurrence_count, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         ON CONFLICT (fingerprint) WHERE state != 'resolved'
+         DO UPDATE SET
+           severity = EXCLUDED.severity,
+           state = EXCLUDED.state,
+           message = EXCLUDED.message,
+           metric_value = EXCLUDED.metric_value,
+           fired_at = COALESCE(anomaly_events.fired_at, EXCLUDED.fired_at),
+           last_eval_at = EXCLUDED.last_eval_at,
+           occurrence_count = anomaly_events.occurrence_count + 1`,
+        [
+          record.fingerprint,
+          record.deviceId,
+          record.anomalyType,
+          record.severity,
+          record.state,
+          record.message,
+          record.metricName ?? null,
+          record.metricValue ?? null,
+          record.threshold ?? null,
+          record.detectedAt,
+          record.firedAt ?? null,
+          record.firedAt ?? record.detectedAt,
+          record.occurrenceCount,
+          record.metadata ? JSON.stringify(record.metadata) : null,
+        ],
       );
     }
+  }
 
-    await this.pool.query(
-      `INSERT INTO anomaly_events (device_id, anomaly_type, severity, message, metric_name, metric_value, threshold, metadata)
-       VALUES ${placeholders.join(', ')}`,
-      values,
-    );
+  async resolveAnomalies(records: AnomalyResolveRecord[]): Promise<void> {
+    if (records.length === 0) return;
+
+    for (const record of records) {
+      await this.pool.query(
+        `UPDATE anomaly_events
+         SET state = 'resolved', resolved_at = $2, last_eval_at = $2, metric_value = COALESCE($3, metric_value)
+         WHERE fingerprint = $1 AND state != 'resolved'`,
+        [record.fingerprint, record.resolvedAt, record.metricValue ?? null],
+      );
+    }
   }
 
   async registerDevice(device: DeviceRecord): Promise<void> {

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { StreamConsumer, ParsedSignal } from './stream-consumer.js';
 import { SlidingWindowAggregator, AggResult } from './aggregator.js';
-import { DbWriter, SignalRecord, AggRecord, AnomalyRecord } from './db-writer.js';
+import { DbWriter, SignalRecord, AggRecord, AnomalyRecord, AnomalyResolveRecord } from './db-writer.js';
 import {
   ChaosCommandSubscriber,
   NullChaosCommandSubscriber,
@@ -26,18 +26,24 @@ interface ProcessorDbWriter {
   writeSignals(records: SignalRecord[]): Promise<void>;
   writeAggregation(table: 'signals_agg_1m' | 'signals_agg_1h', records: AggRecord[]): Promise<void>;
   writeAnomalies(records: AnomalyRecord[]): Promise<void>;
+  resolveAnomalies(records: AnomalyResolveRecord[]): Promise<void>;
   close(): Promise<void>;
 }
 
 interface ProcessorAnomalyEvent {
+  fingerprint: string;
   deviceId: string;
   anomalyType: string;
   severity: string;
+  state: string;
   message: string;
   metricName?: string;
   metricValue?: number;
   threshold?: number;
   detectedAt: number;
+  firedAt?: number;
+  resolvedAt?: number;
+  occurrenceCount: number;
   metadata?: Record<string, unknown>;
 }
 
@@ -84,6 +90,7 @@ export class StreamProcessor extends EventEmitter {
   private chaosEngine?: ProcessorChaosEngine;
   private running = false;
   private lastDashboardPublishAt = 0;
+  private pendingResolves: AnomalyResolveRecord[] = [];
   constructor(options: ProcessorOptions = {}) {
     super();
     this.consumer = options.consumer ?? new StreamConsumer({
@@ -248,7 +255,15 @@ export class StreamProcessor extends EventEmitter {
     if (!this.anomalyDetector) {
       const modulePath = new URL('../../anomaly-engine/src/anomaly-detector.js', import.meta.url).href;
       const module = await import(modulePath);
-      this.anomalyDetector = new module.AnomalyDetector() as ProcessorAnomalyDetector;
+      const detector = new module.AnomalyDetector() as ProcessorAnomalyDetector & { on(event: string, handler: (e: ProcessorAnomalyEvent) => void): void };
+      detector.on('resolved', (event: ProcessorAnomalyEvent) => {
+        this.pendingResolves.push({
+          fingerprint: event.fingerprint,
+          resolvedAt: new Date(event.resolvedAt ?? Date.now()),
+          metricValue: event.metricValue,
+        });
+      });
+      this.anomalyDetector = detector;
     }
 
     if (!this.chaosEngine) {
@@ -290,23 +305,34 @@ export class StreamProcessor extends EventEmitter {
 
   private async persistAnomalies(events: ProcessorAnomalyEvent[]): Promise<void> {
     const records: AnomalyRecord[] = events.map((event) => ({
+      fingerprint: event.fingerprint,
       deviceId: event.deviceId,
       anomalyType: event.anomalyType,
       severity: event.severity,
+      state: event.state,
       message: event.message,
       metricName: event.metricName,
       metricValue: event.metricValue,
       threshold: event.threshold,
       detectedAt: new Date(event.detectedAt),
+      firedAt: event.firedAt ? new Date(event.firedAt) : undefined,
+      occurrenceCount: event.occurrenceCount,
       metadata: event.metadata,
     }));
 
     await this.dbWriter.writeAnomalies(records);
 
+    // Flush any resolved alerts collected from the 'resolved' event
+    if (this.pendingResolves.length > 0) {
+      const resolves = this.pendingResolves.splice(0);
+      await this.dbWriter.resolveAnomalies(resolves);
+    }
+
     await Promise.all(events.map(event => this.realtimePublisher.publishAnomaly({
       device_id: event.deviceId,
       anomaly_type: event.anomalyType,
       severity: event.severity,
+      state: event.state,
       message: event.message,
       metric_name: event.metricName,
       metric_value: event.metricValue,

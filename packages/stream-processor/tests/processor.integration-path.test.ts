@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { describe, expect, it } from 'vitest';
 import { StreamProcessor } from '../src/processor.js';
 import type { ParsedSignal } from '../src/stream-consumer.js';
+import { AnomalyDetector } from '../../anomaly-engine/src/anomaly-detector.js';
 
 class FakeConsumer extends EventEmitter {
   private handler?: (signals: ParsedSignal[]) => Promise<void>;
@@ -31,6 +32,8 @@ class FakeDbWriter {
   async writeAnomalies(records: unknown[]): Promise<void> {
     this.anomalies.push(...records);
   }
+
+  async resolveAnomalies(): Promise<void> {}
 
   async close(): Promise<void> {}
 }
@@ -81,6 +84,7 @@ describe('StreamProcessor integration path', () => {
       dbWriter: dbWriter as never,
       realtimePublisher: realtimePublisher as never,
       chaosCommandSubscriber: chaosSubscriber as never,
+      anomalyDetector: new AnomalyDetector({ pendingDurationMs: 0 }) as never,
     });
 
     await processor.start();
@@ -97,7 +101,7 @@ describe('StreamProcessor integration path', () => {
         deviceId: 'CH-00F-001',
         timestamp: Date.now(),
         protocol: 'bacnet-ip',
-        payload: { compressorCurrent: 80, cop: 4.2 },
+        payload: { compressorCurrent: 120, cop: 2.0 },
         quality: 'good',
         metadata: {
           floor: 0,

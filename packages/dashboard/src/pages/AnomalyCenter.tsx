@@ -8,10 +8,17 @@ const SEVERITY_COLORS: Record<string, { dot: string; badge: string }> = {
   info: { dot: 'bg-blue-500', badge: 'bg-blue-900 text-blue-200' },
 };
 
+const STATE_BADGE: Record<string, string> = {
+  pending: 'bg-yellow-800 text-yellow-200',
+  firing: 'bg-red-800 text-red-200',
+  resolved: 'bg-green-800 text-green-200',
+};
+
 export default function AnomalyCenter() {
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [scenarios, setScenarios] = useState<ChaosScenario[]>([]);
   const [triggerStatus, setTriggerStatus] = useState<string | null>(null);
+  const [stateFilter, setStateFilter] = useState<string>('firing');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,12 +41,16 @@ export default function AnomalyCenter() {
       setAnomalies((current) => {
         const next = [{
           id: data.id ?? Date.now(),
+          fingerprint: data.fingerprint ?? '',
           device_id: data.device_id,
           anomaly_type: data.anomaly_type,
           severity: data.severity ?? 'warning',
+          state: data.state ?? 'firing',
           message: data.message ?? '',
           detected_at: data.detected_at,
+          fired_at: data.fired_at,
           resolved_at: data.resolved_at,
+          occurrence_count: data.occurrence_count ?? 1,
         } as Anomaly, ...current];
         return next.slice(0, 200);
       });
@@ -65,17 +76,45 @@ export default function AnomalyCenter() {
     }
   };
 
+  const filtered = useMemo(() => {
+    if (stateFilter === 'all') return anomalies;
+    return anomalies.filter(a => a.state === stateFilter);
+  }, [anomalies, stateFilter]);
+
   const chartData = useMemo(() => {
-    const typeCounts = anomalies.reduce((acc, a) => {
+    const typeCounts = filtered.reduce((acc, a) => {
       acc[a.anomaly_type] = (acc[a.anomaly_type] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
     return Object.entries(typeCounts).map(([type, count]) => ({ type, count }));
+  }, [filtered]);
+
+  const stateCounts = useMemo(() => {
+    const counts: Record<string, number> = { pending: 0, firing: 0, resolved: 0 };
+    for (const a of anomalies) counts[a.state] = (counts[a.state] ?? 0) + 1;
+    return counts;
   }, [anomalies]);
+
+  if (error) return <div className="text-red-400 p-4">Error: {error}</div>;
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Anomaly & Alert Center</h2>
+
+      {/* State summary cards */}
+      <div className="grid grid-cols-3 gap-4">
+        {(['pending', 'firing', 'resolved'] as const).map(state => (
+          <button key={state} onClick={() => setStateFilter(state)}
+            className={`bg-slate-800 rounded-lg p-4 border text-left transition-colors ${
+              stateFilter === state ? 'border-cyan-500' : 'border-slate-700 hover:border-slate-600'
+            }`}>
+            <div className="text-xs text-slate-400 uppercase">{state}</div>
+            <div className={`text-2xl font-bold ${
+              state === 'firing' ? 'text-red-400' : state === 'pending' ? 'text-amber-400' : 'text-green-400'
+            }`}>{stateCounts[state] ?? 0}</div>
+          </button>
+        ))}
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Anomaly Trend */}
@@ -121,12 +160,22 @@ export default function AnomalyCenter() {
 
       {/* Alert Stream */}
       <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-        <h3 className="text-lg font-semibold mb-4">Recent Alerts</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Recent Alerts</h3>
+          <div className="flex gap-2">
+            {['all', 'pending', 'firing', 'resolved'].map(s => (
+              <button key={s} onClick={() => setStateFilter(s)}
+                className={`px-3 py-1 rounded text-sm capitalize ${
+                  stateFilter === s ? 'bg-cyan-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}>{s}</button>
+            ))}
+          </div>
+        </div>
         <div className="space-y-2 max-h-96 overflow-auto">
-          {anomalies.length === 0 ? (
+          {filtered.length === 0 ? (
             <div className="text-slate-400 text-center py-8">No anomalies detected</div>
-          ) : anomalies.map(a => (
-            <div key={a.id} className="flex items-start gap-3 bg-slate-700 rounded p-3">
+          ) : filtered.map(a => (
+            <div key={`${a.id}-${a.fingerprint}`} className="flex items-start gap-3 bg-slate-700 rounded p-3">
               <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${SEVERITY_COLORS[a.severity]?.dot || 'bg-gray-500'}`} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -135,9 +184,18 @@ export default function AnomalyCenter() {
                   <span className={`text-xs px-1.5 py-0.5 rounded ${
                     SEVERITY_COLORS[a.severity]?.badge || 'bg-gray-900 text-gray-200'
                   }`}>{a.severity}</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${
+                    STATE_BADGE[a.state] || 'bg-gray-900 text-gray-200'
+                  }`}>{a.state}</span>
+                  {a.occurrence_count > 1 && (
+                    <span className="text-xs text-slate-500">x{a.occurrence_count}</span>
+                  )}
                 </div>
                 <div className="text-sm text-slate-300 truncate">{a.message}</div>
-                <div className="text-xs text-slate-500">{new Date(a.detected_at).toLocaleString()}</div>
+                <div className="text-xs text-slate-500">
+                  {new Date(a.detected_at).toLocaleString()}
+                  {a.resolved_at && <span className="ml-2 text-green-500">Resolved: {new Date(a.resolved_at).toLocaleString()}</span>}
+                </div>
               </div>
             </div>
           ))}

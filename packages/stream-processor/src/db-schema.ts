@@ -59,19 +59,36 @@ CREATE TABLE IF NOT EXISTS maintenance_logs (
   performed_by TEXT
 );
 
--- Anomaly events
+-- Anomaly events (fingerprint-deduped, state machine)
 CREATE TABLE IF NOT EXISTS anomaly_events (
-  id          SERIAL PRIMARY KEY,
-  device_id   TEXT NOT NULL,
-  anomaly_type TEXT NOT NULL,
-  severity    TEXT NOT NULL,
-  message     TEXT,
-  metric_name TEXT,
-  metric_value DOUBLE PRECISION,
-  threshold   DOUBLE PRECISION,
-  detected_at TIMESTAMPTZ DEFAULT NOW(),
-  resolved_at TIMESTAMPTZ,
-  metadata    JSONB
+  id               SERIAL PRIMARY KEY,
+  fingerprint      TEXT NOT NULL,
+  device_id        TEXT NOT NULL,
+  anomaly_type     TEXT NOT NULL,
+  severity         TEXT NOT NULL,
+  state            TEXT NOT NULL DEFAULT 'firing',
+  message          TEXT,
+  metric_name      TEXT,
+  metric_value     DOUBLE PRECISION,
+  threshold        DOUBLE PRECISION,
+  detected_at      TIMESTAMPTZ DEFAULT NOW(),
+  fired_at         TIMESTAMPTZ,
+  resolved_at      TIMESTAMPTZ,
+  last_eval_at     TIMESTAMPTZ DEFAULT NOW(),
+  occurrence_count INTEGER DEFAULT 1,
+  metadata         JSONB,
+  CONSTRAINT valid_alert_state CHECK (state IN ('pending','firing','resolved'))
+);
+
+-- Alert state transitions log
+CREATE TABLE IF NOT EXISTS alert_transitions (
+  id         BIGSERIAL PRIMARY KEY,
+  alert_id   INTEGER REFERENCES anomaly_events(id),
+  from_state TEXT,
+  to_state   TEXT NOT NULL,
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  value      DOUBLE PRECISION,
+  annotation TEXT
 );
 
 -- Create indexes
@@ -81,6 +98,9 @@ CREATE INDEX IF NOT EXISTS idx_signals_agg_1m_device ON signals_agg_1m (device_i
 CREATE INDEX IF NOT EXISTS idx_signals_agg_1h_device ON signals_agg_1h (device_id, time DESC);
 CREATE INDEX IF NOT EXISTS idx_anomaly_events_device ON anomaly_events (device_id, detected_at DESC);
 CREATE INDEX IF NOT EXISTS idx_anomaly_events_type ON anomaly_events (anomaly_type, detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_anomaly_events_fingerprint ON anomaly_events (fingerprint);
+CREATE INDEX IF NOT EXISTS idx_anomaly_events_active ON anomaly_events (state) WHERE state != 'resolved';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_anomaly_events_active_fp ON anomaly_events (fingerprint) WHERE state != 'resolved';
 `;
 
 export const CREATE_HYPERTABLES_SQL = `

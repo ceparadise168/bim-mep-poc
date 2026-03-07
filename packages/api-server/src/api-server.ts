@@ -196,6 +196,7 @@ export class ApiServer {
         deviceId: q.deviceId,
         type: q.type,
         severity: q.severity,
+        state: q.state,
         limit: q.limit ? parseInt(q.limit) : undefined,
       });
     });

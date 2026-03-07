@@ -73,11 +73,11 @@ describe('Test 1: Normal Operation Stability', () => {
 
 describe('Test 2: Fault Injection Cascade', () => {
   it('should trigger chaos and detect cascading anomalies', async () => {
-    const detector = new AnomalyDetector();
+    const detector = new AnomalyDetector({ pendingDurationMs: 0 });
     const chaos = new ChaosEngine();
     const anomalies: unknown[] = [];
 
-    detector.on('anomaly', (a) => anomalies.push(a));
+    detector.on('firing', (a: unknown) => anomalies.push(a));
 
     // Trigger chiller fault
     const effects = chaos.triggerScenario('空調主機故障', ['CH-00F-001', 'CH-00F-002']);

@@ -81,12 +81,16 @@ export interface BuildingDashboard {
 
 export interface Anomaly {
   id: number;
+  fingerprint: string;
   device_id: string;
   anomaly_type: string;
   severity: string;
+  state: 'pending' | 'firing' | 'resolved';
   message: string;
   detected_at: string;
+  fired_at?: string;
   resolved_at?: string;
+  occurrence_count: number;
 }
 
 export interface ChaosScenario {
