@@ -7,7 +7,11 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/bim_mep',
 });
 
-const server = new ApiServer({ port: 3000, dbPool: pool });
+const server = new ApiServer({
+  port: 3000,
+  dbPool: pool,
+  redisUrl: process.env.REDIS_URL,
+});
 
 server.start().then(address => {
   console.log(`[API Server] Listening on ${address}`);

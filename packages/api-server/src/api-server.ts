@@ -5,6 +5,16 @@ import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
 import { DataStore } from './data-store.js';
 import { WsManager } from './ws-manager.js';
+import {
+  ChaosCommandPublisher,
+  NullChaosCommandPublisher,
+  RedisChaosCommandPublisher,
+} from './chaos-command-publisher.js';
+import {
+  NullRealtimeSubscriber,
+  RealtimeSubscriber,
+  RedisRealtimeSubscriber,
+} from './realtime-subscriber.js';
 import type pg from 'pg';
 
 export interface ApiServerOptions {
@@ -12,14 +22,20 @@ export interface ApiServerOptions {
   host?: string;
   dbPool?: pg.Pool;
   dbConnectionString?: string;
+  redisUrl?: string;
+  chaosCommandPublisher?: ChaosCommandPublisher;
+  realtimeSubscriber?: RealtimeSubscriber;
 }
 
 export class ApiServer {
   private app: FastifyInstance;
   private store: DataStore;
   private wsManager: WsManager;
+  private chaosCommandPublisher: ChaosCommandPublisher;
+  private realtimeSubscriber: RealtimeSubscriber;
   private port: number;
   private host: string;
+  private initialized = false;
   // Chaos scenarios and anomalies stored in-memory for POC
   private chaosScenarios = [
     { name: '空調主機故障', description: '壓縮機電流飆高 → 過載保護跳脫 → 下游 AHU 送風溫度上升' },
@@ -35,6 +51,10 @@ export class ApiServer {
     this.host = options.host ?? '0.0.0.0';
     this.store = new DataStore({ pool: options.dbPool, connectionString: options.dbConnectionString });
     this.wsManager = new WsManager();
+    this.chaosCommandPublisher = options.chaosCommandPublisher
+      ?? (options.redisUrl ? new RedisChaosCommandPublisher(options.redisUrl) : new NullChaosCommandPublisher());
+    this.realtimeSubscriber = options.realtimeSubscriber
+      ?? (options.redisUrl ? new RedisRealtimeSubscriber(options.redisUrl) : new NullRealtimeSubscriber());
     this.app = Fastify({ logger: false });
   }
 
@@ -58,6 +78,19 @@ export class ApiServer {
 
     this.registerRestRoutes();
     this.registerWsRoutes();
+  }
+
+  async ready(): Promise<void> {
+    if (this.initialized) {
+      return;
+    }
+
+    await this.setup();
+    await this.app.ready();
+    await this.realtimeSubscriber.start((message) => {
+      this.wsManager.broadcast(message.channel, message.data);
+    });
+    this.initialized = true;
   }
 
   private registerRestRoutes(): void {
@@ -191,14 +224,7 @@ export class ApiServer {
 
       const entry = { scenario, triggeredAt: new Date().toISOString(), devices };
       this.chaosHistory.push(entry);
-
-      // Broadcast to anomalies channel
-      this.wsManager.broadcast('anomalies', {
-        type: 'chaos_triggered',
-        scenario,
-        devices,
-        timestamp: Date.now(),
-      });
+      await this.chaosCommandPublisher.publish({ scenario, devices });
 
       return { triggered: true, ...entry };
     });
@@ -214,7 +240,9 @@ export class ApiServer {
   }
 
   private registerWsRoutes(): void {
-    this.app.get('/ws', { websocket: true }, (socket) => {
+    this.app.get('/ws', { websocket: true }, (connection) => {
+      const socket = connection.socket;
+
       socket.on('message', (message: Buffer) => {
         try {
           const data = JSON.parse(message.toString());
@@ -249,12 +277,14 @@ export class ApiServer {
   }
 
   async start(): Promise<string> {
-    await this.setup();
+    await this.ready();
     const address = await this.app.listen({ port: this.port, host: this.host });
     return address;
   }
 
   async stop(): Promise<void> {
+    await this.realtimeSubscriber.close();
+    await this.chaosCommandPublisher.close();
     await this.app.close();
     await this.store.close();
   }

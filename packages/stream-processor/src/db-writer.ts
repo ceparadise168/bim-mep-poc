@@ -16,6 +16,18 @@ export interface SignalRecord {
   metadata: Record<string, unknown>;
 }
 
+export interface AnomalyRecord {
+  deviceId: string;
+  anomalyType: string;
+  severity: string;
+  message: string;
+  metricName?: string;
+  metricValue?: number;
+  threshold?: number;
+  detectedAt: Date;
+  metadata?: Record<string, unknown>;
+}
+
 export class DbWriter {
   private pool: pg.Pool;
   private writeCount = 0;
@@ -69,6 +81,35 @@ export class DbWriter {
 
     await this.pool.query(
       `INSERT INTO ${table} (time, device_id, metric_name, avg_value, min_value, max_value, count) VALUES ${placeholders.join(', ')}`,
+      values,
+    );
+  }
+
+  async writeAnomalies(records: AnomalyRecord[]): Promise<void> {
+    if (records.length === 0) return;
+
+    const values: unknown[] = [];
+    const placeholders: string[] = [];
+
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i];
+      const offset = i * 8;
+      placeholders.push(`($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8})`);
+      values.push(
+        record.deviceId,
+        record.anomalyType,
+        record.severity,
+        record.message,
+        record.metricName ?? null,
+        record.metricValue ?? null,
+        record.threshold ?? null,
+        record.metadata ? JSON.stringify(record.metadata) : null,
+      );
+    }
+
+    await this.pool.query(
+      `INSERT INTO anomaly_events (device_id, anomaly_type, severity, message, metric_name, metric_value, threshold, metadata)
+       VALUES ${placeholders.join(', ')}`,
       values,
     );
   }
