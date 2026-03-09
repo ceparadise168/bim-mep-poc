@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { api, Anomaly, ChaosScenario, connectWebSocket } from '../api';
+import { SEVERITY_DOT_COLORS } from '../utils';
 
-const SEVERITY_COLORS: Record<string, { dot: string; badge: string }> = {
-  critical: { dot: 'bg-red-500', badge: 'bg-red-900 text-red-200' },
-  warning: { dot: 'bg-amber-500', badge: 'bg-amber-900 text-amber-200' },
-  info: { dot: 'bg-blue-500', badge: 'bg-blue-900 text-blue-200' },
+const SEVERITY_BADGE_COLORS: Record<string, string> = {
+  critical: 'bg-red-900 text-red-200',
+  warning: 'bg-amber-900 text-amber-200',
+  info: 'bg-blue-900 text-blue-200',
 };
 
 const STATE_BADGE: Record<string, string> = {
@@ -198,13 +199,13 @@ export default function AnomalyCenter() {
             <div className="text-slate-400 text-center py-8">No anomalies detected</div>
           ) : filtered.map(a => (
             <div key={`${a.id}-${a.fingerprint}`} className="flex items-start gap-3 bg-slate-700 rounded p-3">
-              <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${SEVERITY_COLORS[a.severity]?.dot || 'bg-gray-500'}`} />
+              <span className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${SEVERITY_DOT_COLORS[a.severity] || 'bg-gray-500'}`} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-sm">{a.device_id}</span>
                   <span className="text-xs text-slate-400 capitalize">{a.anomaly_type}</span>
                   <span className={`text-xs px-1.5 py-0.5 rounded ${
-                    SEVERITY_COLORS[a.severity]?.badge || 'bg-gray-900 text-gray-200'
+                    SEVERITY_BADGE_COLORS[a.severity] || 'bg-gray-900 text-gray-200'
                   }`}>{a.severity}</span>
                   <span className={`text-xs px-1.5 py-0.5 rounded ${
                     STATE_BADGE[a.state] || 'bg-gray-900 text-gray-200'

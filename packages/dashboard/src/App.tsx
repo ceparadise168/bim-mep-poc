@@ -20,15 +20,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-900">
-      <nav className="bg-slate-800 border-b border-slate-700 px-6 py-3">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <h1 className="text-xl font-bold text-cyan-400">BIM MEP Dashboard</h1>
-          <div className="flex gap-4">
+      <nav className="bg-slate-800 border-b border-slate-700 px-4 sm:px-6 py-3">
+        <div className="flex items-center gap-4 max-w-7xl mx-auto">
+          <h1 className="text-lg sm:text-xl font-bold text-cyan-400 whitespace-nowrap shrink-0">BIM MEP</h1>
+          <div className="flex gap-2 sm:gap-4 overflow-x-auto scrollbar-hide">
             {navItems.map(item => (
               <Link
                 key={item.path}
                 to={item.path}
-                className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                className={`px-2 sm:px-3 py-1.5 rounded text-xs sm:text-sm transition-colors whitespace-nowrap ${
                   location.pathname === item.path
                     ? 'bg-cyan-600 text-white'
                     : 'text-slate-300 hover:bg-slate-700'
@@ -41,7 +41,7 @@ export default function App() {
         </div>
       </nav>
 
-      <main className={`mx-auto px-6 py-6 ${location.pathname === '/3d' ? 'max-w-full' : 'max-w-7xl'}`}>
+      <main className={`mx-auto ${location.pathname === '/3d' ? 'max-w-full' : 'px-6 py-6 max-w-7xl'}`}>
         <Routes>
           <Route path="/" element={<BuildingOverview />} />
           <Route path="/floor/:floor" element={<FloorDetail />} />
