@@ -91,6 +91,7 @@ export interface Anomaly {
   fired_at?: string;
   resolved_at?: string;
   occurrence_count: number;
+  metadata?: { rootCause?: string; [key: string]: unknown };
 }
 
 export interface ChaosScenario {

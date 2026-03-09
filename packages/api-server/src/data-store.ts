@@ -141,10 +141,13 @@ export class DataStore {
       this.pool.query('SELECT device_type, COUNT(*) as count FROM devices GROUP BY device_type ORDER BY count DESC'),
       this.pool.query(`SELECT severity, COUNT(*) as count FROM anomaly_events WHERE state != 'resolved' GROUP BY severity`),
       this.pool.query(
-        `SELECT time_bucket('1 hour', time) as hour, SUM(value) as total_kwh
-         FROM signals_raw WHERE metric_name = 'kwh'
-         AND time > NOW() - INTERVAL '24 hours'
-         GROUP BY hour ORDER BY hour`,
+        `SELECT hour, SUM(delta_kwh) as total_kwh FROM (
+           SELECT time_bucket('1 hour', time) as hour, device_id,
+                  MAX(value) - MIN(value) as delta_kwh
+           FROM signals_raw WHERE metric_name = 'kwh'
+           AND time > NOW() - INTERVAL '24 hours'
+           GROUP BY hour, device_id
+         ) sub GROUP BY hour ORDER BY hour`,
       ),
     ]);
 
@@ -192,10 +195,13 @@ export class DataStore {
   async getEnergyAnalytics() {
     const [floorEnergy, copTrend] = await Promise.all([
       this.pool.query(
-        `SELECT d.floor, SUM(s.value) as total_kwh
-         FROM signals_raw s JOIN devices d ON s.device_id = d.device_id
-         WHERE s.metric_name = 'kwh' AND s.time > NOW() - INTERVAL '24 hours'
-         GROUP BY d.floor ORDER BY d.floor`,
+        `SELECT floor, SUM(delta_kwh) as total_kwh FROM (
+           SELECT d.floor, s.device_id,
+                  MAX(s.value) - MIN(s.value) as delta_kwh
+           FROM signals_raw s JOIN devices d ON s.device_id = d.device_id
+           WHERE s.metric_name = 'kwh' AND s.time > NOW() - INTERVAL '24 hours'
+           GROUP BY d.floor, s.device_id
+         ) sub GROUP BY floor ORDER BY floor`,
       ),
       this.pool.query(
         `SELECT time_bucket('1 hour', time) as hour, AVG(value) as avg_cop

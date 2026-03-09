@@ -18,7 +18,7 @@ export default function AnomalyCenter() {
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [scenarios, setScenarios] = useState<ChaosScenario[]>([]);
   const [triggerStatus, setTriggerStatus] = useState<string | null>(null);
-  const [stateFilter, setStateFilter] = useState<string>('firing');
+  const [stateFilter, setStateFilter] = useState<string>('all');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,6 +51,7 @@ export default function AnomalyCenter() {
           fired_at: data.fired_at,
           resolved_at: data.resolved_at,
           occurrence_count: data.occurrence_count ?? 1,
+          metadata: data.metadata,
         } as Anomaly, ...current];
         return next.slice(0, 200);
       });
@@ -100,6 +101,27 @@ export default function AnomalyCenter() {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Anomaly & Alert Center</h2>
+
+      {/* Anomaly type & state legend */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-slate-800 rounded-lg px-4 py-3 border border-slate-700">
+          <div className="text-xs text-slate-400 uppercase mb-2">偵測類型</div>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            <span><span className="text-white font-medium">threshold</span> <span className="text-slate-400">數值超標</span></span>
+            <span><span className="text-white font-medium">trend</span> <span className="text-slate-400">持續偏離均值</span></span>
+            <span><span className="text-white font-medium">performance</span> <span className="text-slate-400">效率退化</span></span>
+            <span><span className="text-white font-medium">offline</span> <span className="text-slate-400">設備離線</span></span>
+          </div>
+        </div>
+        <div className="bg-slate-800 rounded-lg px-4 py-3 border border-slate-700">
+          <div className="text-xs text-slate-400 uppercase mb-2">告警狀態</div>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            <span><span className="text-amber-400 font-medium">pending</span> <span className="text-slate-400">觀察中（30s）</span></span>
+            <span><span className="text-red-400 font-medium">firing</span> <span className="text-slate-400">告警中</span></span>
+            <span><span className="text-green-400 font-medium">resolved</span> <span className="text-slate-400">已解除</span></span>
+          </div>
+        </div>
+      </div>
 
       {/* State summary cards */}
       <div className="grid grid-cols-3 gap-4">
@@ -189,6 +211,11 @@ export default function AnomalyCenter() {
                   }`}>{a.state}</span>
                   {a.occurrence_count > 1 && (
                     <span className="text-xs text-slate-500">x{a.occurrence_count}</span>
+                  )}
+                  {a.metadata?.rootCause && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-purple-900 text-purple-200">
+                      歸因：{a.metadata.rootCause}
+                    </span>
                   )}
                 </div>
                 <div className="text-sm text-slate-300 truncate">{a.message}</div>

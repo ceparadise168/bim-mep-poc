@@ -4,11 +4,15 @@ import FloorDetail from './pages/FloorDetail';
 import DeviceDetail from './pages/DeviceDetail';
 import AnomalyCenter from './pages/AnomalyCenter';
 import EnergyAnalysis from './pages/EnergyAnalysis';
+import AboutProject from './pages/AboutProject';
+import Building3DView from './pages/Building3DView';
 
 const navItems = [
   { path: '/', label: 'Building Overview' },
   { path: '/anomalies', label: 'Anomaly Center' },
   { path: '/energy', label: 'Energy Analysis' },
+  { path: '/3d', label: '3D View' },
+  { path: '/about', label: 'About' },
 ];
 
 export default function App() {
@@ -37,13 +41,15 @@ export default function App() {
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-6 py-6">
+      <main className={`mx-auto px-6 py-6 ${location.pathname === '/3d' ? 'max-w-full' : 'max-w-7xl'}`}>
         <Routes>
           <Route path="/" element={<BuildingOverview />} />
           <Route path="/floor/:floor" element={<FloorDetail />} />
           <Route path="/device/:id" element={<DeviceDetail />} />
           <Route path="/anomalies" element={<AnomalyCenter />} />
           <Route path="/energy" element={<EnergyAnalysis />} />
+          <Route path="/3d" element={<Building3DView />} />
+          <Route path="/about" element={<AboutProject />} />
         </Routes>
       </main>
     </div>

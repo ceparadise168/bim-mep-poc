@@ -1,7 +1,8 @@
 FROM node:20-alpine AS build
 
 WORKDIR /app
-COPY packages/dashboard/package*.json ./
+COPY packages/dashboard/package.json ./
+COPY package-lock.json ./
 RUN npm install
 COPY packages/dashboard/ .
 RUN npm run build

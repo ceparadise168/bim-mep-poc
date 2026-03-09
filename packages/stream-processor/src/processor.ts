@@ -58,6 +58,7 @@ interface ProcessorAnomalyDetector {
 
 interface ActiveFault {
   faultType: string;
+  scenarioName: string;
 }
 
 interface ProcessorChaosEngine {
@@ -194,6 +195,18 @@ export class StreamProcessor extends EventEmitter {
     }
 
     if (anomalies.length > 0) {
+      // Attach root cause attribution from active chaos faults
+      if (this.chaosEngine) {
+        for (const anomaly of anomalies) {
+          const fault = this.chaosEngine.getActiveFault(anomaly.deviceId);
+          if (fault) {
+            anomaly.metadata = {
+              ...anomaly.metadata,
+              rootCause: fault.scenarioName,
+            };
+          }
+        }
+      }
       await this.persistAnomalies(anomalies);
     }
 
@@ -255,7 +268,8 @@ export class StreamProcessor extends EventEmitter {
     if (!this.anomalyDetector) {
       const modulePath = new URL('../../anomaly-engine/src/anomaly-detector.js', import.meta.url).href;
       const module = await import(modulePath);
-      const detector = new module.AnomalyDetector() as ProcessorAnomalyDetector & { on(event: string, handler: (e: ProcessorAnomalyEvent) => void): void };
+      const pendingMs = parseInt(process.env.ANOMALY_PENDING_MS ?? '5000', 10);
+      const detector = new module.AnomalyDetector({ pendingDurationMs: pendingMs }) as ProcessorAnomalyDetector & { on(event: string, handler: (e: ProcessorAnomalyEvent) => void): void };
       detector.on('resolved', (event: ProcessorAnomalyEvent) => {
         this.pendingResolves.push({
           fingerprint: event.fingerprint,
