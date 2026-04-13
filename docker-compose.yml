@@ -1,6 +1,7 @@
 services:
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
       - "6379:6379"
     healthcheck:
@@ -11,6 +12,7 @@ services:
 
   timescaledb:
     image: timescale/timescaledb:latest-pg16
+    restart: unless-stopped
     environment:
       POSTGRES_DB: bim_mep
       POSTGRES_USER: postgres
@@ -40,6 +42,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.app
+    restart: unless-stopped
     command: ["node", "--import", "tsx", "packages/signal-simulator/src/standalone.ts"]
     depends_on:
       db-init:
@@ -53,6 +56,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.app
+    restart: unless-stopped
     command: ["node", "--import", "tsx", "packages/ingestion-gateway/src/standalone.ts"]
     ports:
       - "3100:3100"
@@ -68,6 +72,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.app
+    restart: unless-stopped
     command: ["node", "--import", "tsx", "packages/stream-processor/src/standalone.ts"]
     depends_on:
       redis:
@@ -82,6 +87,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.app
+    restart: unless-stopped
     command: ["node", "--import", "tsx", "packages/api-server/src/standalone.ts"]
     ports:
       - "3000:3000"
@@ -100,6 +106,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dashboard
+    restart: unless-stopped
     ports:
       - "5173:80"
     depends_on:
