@@ -1,0 +1,72 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/pull_request_template.md'
+      - 'LICENSE'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ap-northeast-1
+      INSTANCE_ID: i-0c598ee9c0087a563
+      HOST: 57.180.82.227
+      SSH_USER: ec2-user
+      PROJECT_DIR: bim-mep-poc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Write SSH key
+        env:
+          PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          PUBLIC_KEY: ${{ secrets.DEPLOY_SSH_PUBLIC_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$PRIVATE_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$PUBLIC_KEY"  > ~/.ssh/deploy_key.pub
+          chmod 600 ~/.ssh/deploy_key
+          chmod 644 ~/.ssh/deploy_key.pub
+
+      - name: Push temp SSH public key via EC2 Instance Connect
+        run: |
+          aws ec2-instance-connect send-ssh-public-key \
+            --instance-id "$INSTANCE_ID" \
+            --instance-os-user "$SSH_USER" \
+            --ssh-public-key "file://$HOME/.ssh/deploy_key.pub"
+
+      - name: Deploy (git pull + docker compose up)
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 \
+            "$SSH_USER@$HOST" bash -s <<'REMOTE'
+          set -euo pipefail
+          cd ~/bim-mep-poc
+          echo "[remote] before: $(git rev-parse --short HEAD)"
+          git fetch --quiet origin main
+          echo "[remote] target: $(git rev-parse --short origin/main)"
+          git reset --hard origin/main
+          sudo docker compose up -d --build --remove-orphans
+          sudo docker compose ps
+          REMOTE
+
+      - name: Smoke test
+        run: |
+          curl -fsS -o /dev/null -w "dashboard: %{http_code}\n" --max-time 15 "http://$HOST:5173/"
+          curl -fsS -o /dev/null -w "api/devices: %{http_code}\n" --max-time 15 "http://$HOST:3000/api/v1/devices?limit=1"
