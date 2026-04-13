@@ -66,7 +66,20 @@ jobs:
           sudo docker compose ps
           REMOTE
 
-      - name: Smoke test
+      - name: Smoke test (with retry)
         run: |
-          curl -fsS -o /dev/null -w "dashboard: %{http_code}\n" --max-time 15 "http://$HOST:5173/"
-          curl -fsS -o /dev/null -w "api/devices: %{http_code}\n" --max-time 15 "http://$HOST:3000/api/v1/devices?limit=1"
+          probe() {
+            local url=$1 name=$2
+            for i in $(seq 1 30); do
+              code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 5 "$url" || echo 000)
+              if [ "$code" = "200" ]; then
+                echo "$name: $code"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "$name: failed (last=$code)" >&2
+            return 1
+          }
+          probe "http://$HOST:5173/" dashboard
+          probe "http://$HOST:3000/api/v1/devices?limit=1" api/devices
