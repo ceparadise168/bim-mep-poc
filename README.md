@@ -8,6 +8,11 @@
 
 Smart Hospital Building MEP (Mechanical, Electrical, Plumbing) Equipment Management Platform - Backend POC with real-time IoT signal simulation, anomaly detection, and visualization dashboard.
 
+## Live Demo
+
+- Dashboard: http://57.180.82.227:5173
+- API Docs (Swagger): http://57.180.82.227:3000/docs
+
 ## Screenshots
 
 | Building Overview | 3D Visualization |
@@ -116,6 +121,16 @@ node --import tsx packages/stream-processor/src/standalone.ts
 node --import tsx packages/api-server/src/standalone.ts
 cd packages/dashboard && npm run dev
 ```
+
+## Deployment
+
+One-shot deploy to the demo EC2 instance from a local checkout:
+
+```bash
+./scripts/deploy.sh
+```
+
+The script uses [EC2 Instance Connect](https://docs.aws.amazon.com/ec2/latest/userguide/connect-using-eic.html) to push a temporary SSH key (no long-lived keys to distribute), then on the remote runs `git reset --hard origin/main` and `docker compose up -d --build --remove-orphans`. Override host / instance / key via env vars — see the script header.
 
 ## Project Structure
 
