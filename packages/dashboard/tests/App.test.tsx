@@ -36,7 +36,7 @@ function renderApp(initialEntries: string[] = ['/']) {
 describe('App', () => {
   it('should render navigation', () => {
     renderApp();
-    expect(screen.getByText('BIM MEP Dashboard')).toBeInTheDocument();
+    expect(screen.getByText('BIM MEP')).toBeInTheDocument();
     expect(screen.getByText('Building Overview')).toBeInTheDocument();
     expect(screen.getByText('Anomaly Center')).toBeInTheDocument();
     expect(screen.getByText('Energy Analysis')).toBeInTheDocument();
