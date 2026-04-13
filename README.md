@@ -1,6 +1,22 @@
 # BIM MEP IoT Backend POC
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-43853d)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.4-3178c6)](https://www.typescriptlang.org)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ed)](https://docs.docker.com/compose/)
+[![CI](https://github.com/ceparadise168/bim-mep-poc/actions/workflows/ci.yml/badge.svg)](https://github.com/ceparadise168/bim-mep-poc/actions/workflows/ci.yml)
+
 Smart Hospital Building MEP (Mechanical, Electrical, Plumbing) Equipment Management Platform - Backend POC with real-time IoT signal simulation, anomaly detection, and visualization dashboard.
+
+## Screenshots
+
+| Building Overview | 3D Visualization |
+|---|---|
+| ![Building Overview](building-overview-fixed.png) | ![3D View](desktop-3d-view.png) |
+
+| Anomaly Center | Mobile 3D |
+|---|---|
+| ![Anomaly Center](anomaly-center-legend.png) | ![Mobile](mobile-3d-view.png) |
 
 ## Architecture
 
