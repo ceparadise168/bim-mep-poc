@@ -3,3 +3,19 @@ dist/
 *.tsbuildinfo
 .env
 .DS_Store
+
+# OS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+.playwright-mcp/
