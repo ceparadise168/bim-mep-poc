@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS alert_transitions (
 
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_signals_raw_device ON signals_raw (device_id, time DESC);
+CREATE INDEX IF NOT EXISTS idx_signals_raw_device_metric ON signals_raw (device_id, metric_name, time DESC);
 CREATE INDEX IF NOT EXISTS idx_signals_raw_metric ON signals_raw (metric_name, time DESC);
 CREATE INDEX IF NOT EXISTS idx_signals_agg_1m_device ON signals_agg_1m (device_id, time DESC);
 CREATE INDEX IF NOT EXISTS idx_signals_agg_1h_device ON signals_agg_1h (device_id, time DESC);
@@ -111,4 +112,6 @@ SELECT create_hypertable('signals_agg_1h', 'time', if_not_exists => TRUE);
 
 export const RETENTION_POLICY_SQL = `
 SELECT add_retention_policy('signals_raw', INTERVAL '7 days', if_not_exists => TRUE);
+SELECT add_retention_policy('signals_agg_1m', INTERVAL '30 days', if_not_exists => TRUE);
+SELECT add_retention_policy('signals_agg_1h', INTERVAL '365 days', if_not_exists => TRUE);
 `;

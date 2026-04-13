@@ -62,7 +62,8 @@ export class DataStore {
       this.pool.query('SELECT * FROM devices WHERE device_id = $1', [deviceId]),
       this.pool.query(
         `SELECT DISTINCT ON (metric_name) metric_name, value, time, quality
-         FROM signals_raw WHERE device_id = $1 ORDER BY metric_name, time DESC`,
+         FROM signals_raw WHERE device_id = $1 AND time > NOW() - INTERVAL '1 hour'
+         ORDER BY metric_name, time DESC`,
         [deviceId],
       ),
     ]);
